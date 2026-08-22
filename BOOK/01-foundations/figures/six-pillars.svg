@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="650" viewBox="0 0 1200 650">
+<rect width="1200" height="650" fill="#ffffff"/>
+<text x="600" y="45" text-anchor="middle" font-family="Arial" font-size="28" font-weight="700">چارچوب شش‌ستونه تحول دیجیتال هوشمند</text>
+<g font-family="Arial" text-anchor="middle" font-size="21">
+<rect x="60" y="110" width="160" height="150" rx="16" fill="#eaf2ff" stroke="#365f91" stroke-width="2"/><text x="140" y="155" font-weight="700">استراتژی</text><text x="140" y="200">چرا؟</text><text x="140" y="235">کجا؟</text>
+<rect x="250" y="110" width="160" height="150" rx="16" fill="#eef8ee" stroke="#487a48" stroke-width="2"/><text x="330" y="155" font-weight="700">قابلیت</text><text x="330" y="200">چه توانایی؟</text><text x="330" y="235">چه نقش‌هایی؟</text>
+<rect x="440" y="110" width="160" height="150" rx="16" fill="#fff7e6" stroke="#9a7419" stroke-width="2"/><text x="520" y="155" font-weight="700">معماری</text><text x="520" y="200">چگونه؟</text><text x="520" y="235">چطور یکپارچه؟</text>
+<rect x="630" y="110" width="160" height="150" rx="16" fill="#f9eef8" stroke="#8c4c84" stroke-width="2"/><text x="710" y="155" font-weight="700">داده و AI</text><text x="710" y="200">چه هوشمندی؟</text><text x="710" y="235">چه تصمیمی؟</text>
+<rect x="820" y="110" width="160" height="150" rx="16" fill="#eef3f3" stroke="#4e6b6b" stroke-width="2"/><text x="900" y="155" font-weight="700">انسان و فرهنگ</text><text x="900" y="200">چه مهارتی؟</text><text x="900" y="235">چه تغییری؟</text>
+<rect x="1010" y="110" width="130" height="150" rx="16" fill="#f2eeee" stroke="#754c4c" stroke-width="2"/><text x="1075" y="155" font-weight="700">حکمرانی</text><text x="1075" y="200">اعتماد</text><text x="1075" y="235">ریسک</text>
+<path d="M120 330 L1080 330" stroke="#555" stroke-width="4"/>
+<polygon points="1080,330 1055,315 1055,345" fill="#555"/>
+<text x="600" y="375" font-size="22" font-weight="700">خلق ارزش و یادگیری سازمانی</text>
+<rect x="235" y="420" width="730" height="115" rx="20" fill="#f8f8f8" stroke="#777" stroke-width="2"/>
+<text x="600" y="470" font-size="21">مسئله واقعی → قابلیت → فناوری مناسب → استقرار → سنجش → یادگیری</text>
+<text x="600" y="510" font-size="18">فناوری در خدمت تحول است؛ نه جایگزین استراتژی و سازمان.</text>
+</g>
+</svg>
