@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520">
+<rect width="1200" height="520" fill="#ffffff"/>
+<text x="600" y="42" text-anchor="middle" font-family="Arial" font-size="28" font-weight="700">سازمان AI-Enabled در برابر سازمان AI-Native</text>
+<g font-family="Arial" text-anchor="middle">
+<rect x="80" y="90" width="470" height="300" rx="20" fill="#eef4fb" stroke="#486a90" stroke-width="3"/>
+<text x="315" y="135" font-size="25" font-weight="700">AI-Enabled</text>
+<text x="315" y="180" font-size="20">سازمان موجود + قابلیت‌های AI</text>
+<text x="315" y="225" font-size="19">AI به فرایندهای موجود افزوده می‌شود</text>
+<text x="315" y="265" font-size="19">معماری اصلی می‌تواند کمابیش ثابت بماند</text>
+<text x="315" y="305" font-size="19">تمرکز بر افزایش بهره‌وری و اتوماسیون</text>
+<text x="315" y="345" font-size="18">نمونه: Copilot، Chatbot، Predictive Analytics</text>
+<rect x="650" y="90" width="470" height="300" rx="20" fill="#f5eef8" stroke="#7a4d82" stroke-width="3"/>
+<text x="885" y="135" font-size="25" font-weight="700">AI-Native</text>
+<text x="885" y="180" font-size="20">AI بخشی از طراحی سازمان است</text>
+<text x="885" y="225" font-size="19">فرایند و محصول با درنظرگرفتن AI طراحی می‌شود</text>
+<text x="885" y="265" font-size="19">داده، AI و معماری درهم‌تنیده‌اند</text>
+<text x="885" y="305" font-size="19">تمرکز بر قابلیت‌های جدید و یادگیری پیوسته</text>
+<text x="885" y="345" font-size="18">اما همچنان به حکمرانی و نقش انسان نیاز دارد</text>
+<path d="M550 240 L650 240" stroke="#555" stroke-width="5"/>
+<polygon points="650,240 628,227 628,253" fill="#555"/>
+<text x="600" y="450" text-anchor="middle" font-size="18">این نمودار یک چارچوب آموزشی است؛ AI-Native یک تعریف استاندارد و دوحالته ندارد.</text>
+</g>
+</svg>
