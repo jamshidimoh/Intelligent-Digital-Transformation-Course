@@ -1,0 +1,44 @@
+@page {
+  size: A4;
+  margin: 2.2cm 2cm 2.2cm 2.2cm;
+}
+
+html, body {
+  direction: rtl;
+  unicode-bidi: plaintext;
+  text-align: right;
+  font-family: "Noto Naskh Arabic", "Vazirmatn", "Tahoma", sans-serif;
+  font-size: 12.5pt;
+  line-height: 1.9;
+}
+
+body { color: #111; }
+
+h1, h2, h3, h4 {
+  direction: rtl;
+  text-align: right;
+  font-family: "Noto Naskh Arabic", "Vazirmatn", "Tahoma", sans-serif;
+}
+
+p, li, blockquote, table, figcaption {
+  direction: rtl;
+  unicode-bidi: plaintext;
+  text-align: right;
+}
+
+code, pre {
+  direction: ltr;
+  unicode-bidi: embed;
+  text-align: left;
+  font-family: "DejaVu Sans Mono", monospace;
+}
+
+a { color: inherit; }
+
+figure { text-align: center; }
+img { max-width: 92%; height: auto; }
+
+.english, .latin {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
