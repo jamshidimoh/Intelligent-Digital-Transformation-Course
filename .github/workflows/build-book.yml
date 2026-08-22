@@ -1,0 +1,36 @@
+name: Build Book
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'BOOK/**'
+      - 'tools/**'
+      - '.github/workflows/build-book.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Pandoc
+        uses: pandoc/actions/setup@v1
+        with:
+          version: 3.7.0.2
+
+      - name: Build chapters
+        run: python tools/build_book.py
+
+      - name: Upload book artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: chapter-01-build
+          path: PUBLISH/rendered/
