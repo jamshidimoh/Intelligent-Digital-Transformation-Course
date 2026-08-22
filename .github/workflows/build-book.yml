@@ -1,4 +1,4 @@
-name: Build Book
+name: Build and Publish Book
 
 on:
   push:
@@ -9,6 +9,9 @@ on:
       - '.github/workflows/build-book.yml'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -16,19 +19,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
+      - name: Install rendering dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pandoc libreoffice fonts-noto-core fonts-noto-extra librsvg2-bin
 
-      - name: Install Pandoc
-        run: sudo apt-get update && sudo apt-get install -y pandoc
-
-      - name: Build chapters
+      - name: Build Markdown chapters
         run: python tools/build_book.py
 
-      - name: Upload book artifacts
+      - name: Render DOCX and PDF chapter files
+        run: python tools/render_book.py
+
+      - name: Commit published chapter files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add PUBLISH/CHAPTERS
+          if git diff --cached --quiet; then
+            echo "No publication changes."
+            exit 0
+          fi
+          git commit -m "Publish chapter DOCX and PDF files"
+          git push
+
+      - name: Upload publication artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: chapter-01-build
-          path: PUBLISH/rendered/
+          name: book-publications
+          path: PUBLISH/CHAPTERS/
