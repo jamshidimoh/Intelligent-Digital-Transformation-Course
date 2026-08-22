@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="430" viewBox="0 0 1200 430">
+<rect width="1200" height="430" fill="#ffffff"/>
+<text x="600" y="42" text-anchor="middle" font-family="Arial" font-size="26" font-weight="700">سیر تحول دیجیتال</text>
+<g font-family="Arial" font-size="20" text-anchor="middle">
+<rect x="55" y="105" width="190" height="180" rx="16" fill="#eaf2ff" stroke="#365f91" stroke-width="2"/>
+<text x="150" y="145" font-weight="700">فناوری اطلاعات</text><text x="150" y="185">پردازش</text><text x="150" y="215">اتوماسیون</text><text x="150" y="245">سیستم‌های سازمانی</text>
+<rect x="305" y="105" width="190" height="180" rx="16" fill="#eef8ee" stroke="#487a48" stroke-width="2"/>
+<text x="400" y="145" font-weight="700">Digitization</text><text x="400" y="185">اطلاعات</text><text x="400" y="215">اسناد</text><text x="400" y="245">داده دیجیتال</text>
+<rect x="555" y="105" width="190" height="180" rx="16" fill="#fff7e6" stroke="#9a7419" stroke-width="2"/>
+<text x="650" y="145" font-weight="700">Digitalization</text><text x="650" y="185">فرایند</text><text x="650" y="215">اتوماسیون</text><text x="650" y="245">یکپارچگی</text>
+<rect x="805" y="105" width="190" height="180" rx="16" fill="#f9eef8" stroke="#8c4c84" stroke-width="2"/>
+<text x="900" y="145" font-weight="700">Digital Transformation</text><text x="900" y="185">قابلیت</text><text x="900" y="215">مدل کسب‌وکار</text><text x="900" y="245">ارزش‌آفرینی</text>
+<rect x="1035" y="105" width="120" height="180" rx="16" fill="#f1f1f1" stroke="#555" stroke-width="2"/>
+<text x="1095" y="145" font-weight="700">هوشمند</text><text x="1095" y="185">Data</text><text x="1095" y="215">AI</text><text x="1095" y="245">Adaptive</text>
+</g>
+<g stroke="#777" stroke-width="3" fill="none">
+<path d="M245 195 L305 195"/><path d="M495 195 L555 195"/><path d="M745 195 L805 195"/><path d="M995 195 L1035 195"/>
+</g>
+<text x="600" y="350" text-anchor="middle" font-family="Arial" font-size="18">این مسیر یک مدل آموزشی است؛ سازمان‌ها ممکن است هم‌زمان در چند سطح قرار داشته باشند.</text>
+</svg>
