@@ -22,9 +22,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install Pandoc
-        uses: pandoc/actions/setup@v1
-        with:
-          version: 3.7.0.2
+        run: sudo apt-get update && sudo apt-get install -y pandoc
 
       - name: Build chapters
         run: python tools/build_book.py
