@@ -2,7 +2,7 @@ name: Build and Publish Book
 
 on:
   push:
-    branches: [main]
+    branches: [main, book-agent-foundation]
     paths:
       - 'BOOK/**'
       - 'tools/**'
