@@ -19,6 +19,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: build-book-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -45,7 +49,14 @@ jobs:
       - name: Generate publication QA report
         run: python tools/validate_publication.py
 
+      - name: Synchronize branch before generated-file commits
+        if: github.event_name != 'pull_request'
+        run: |
+          git fetch origin ${{ github.ref_name }}
+          git rebase origin/${{ github.ref_name }}
+
       - name: Persist QA report for inspection
+        if: github.event_name != 'pull_request'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -66,6 +77,12 @@ jobs:
             exit 1
           fi
           echo 'Publication QA gate passed.'
+
+      - name: Synchronize branch before publication commit
+        if: github.event_name != 'pull_request'
+        run: |
+          git fetch origin ${{ github.ref_name }}
+          git rebase origin/${{ github.ref_name }}
 
       - name: Publish generated chapter files to repository
         if: github.event_name != 'pull_request'
