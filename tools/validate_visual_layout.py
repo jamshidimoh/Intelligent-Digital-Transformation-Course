@@ -3,18 +3,17 @@ from __future__ import annotations
 from pathlib import Path
 import re
 import subprocess
-import sys
-import tempfile
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 PDF_DIR = ROOT / "PUBLISH" / "CHAPTERS"
 BOOK_DIR = ROOT / "BOOK"
-W = "http://www.xpdfreader.com/pdfxml/"
+XHTML = "http://www.w3.org/1999/xhtml"
 
 
 def norm(text: str) -> str:
-    return re.sub(r"\s+", "", text).replace("‌", "")
+    text = text.replace("‌", "")
+    return re.sub(r"\s+", "", text)
 
 
 def run(cmd: list[str]) -> str:
@@ -36,16 +35,20 @@ def source_headings(chapter: Path) -> list[str]:
 def pdf_lines(pdf: Path):
     xml = run(["pdftotext", "-bbox-layout", "-enc", "UTF-8", str(pdf), "-"])
     root = ET.fromstring(xml)
+    pages = root.findall(f".//{{{XHTML}}}page")
+    if not pages:
+        pages = root.findall(".//page")
     result = []
-    for page in root.iter("page"):
+    for page in pages:
         width = float(page.attrib.get("width", "0"))
-        for line in page.iter("line"):
-            words = list(line.iter("word"))
-            text = " ".join((w.text or "") for w in words)
+        lines = page.findall(f".//{{{XHTML}}}line") or page.findall(".//line")
+        for line in lines:
+            words = line.findall(f".//{{{XHTML}}}word") or line.findall(".//word")
+            text = " ".join((word.text or "") for word in words)
             if not text.strip() or not words:
                 continue
-            xmax = max(float(w.attrib.get("xMax", "0")) for w in words)
-            xmin = min(float(w.attrib.get("xMin", "0")) for w in words)
+            xmax = max(float(word.attrib.get("xMax", "0")) for word in words)
+            xmin = min(float(word.attrib.get("xMin", "0")) for word in words)
             result.append((width, xmin, xmax, text))
     return result
 
@@ -54,6 +57,7 @@ def main() -> int:
     errors: list[str] = []
     notes: list[str] = ["# Visual Layout QA", ""]
     enabled = sorted(BOOK_DIR.glob("*/*.publish-enabled"))
+
     for marker in enabled:
         chapter = marker.parent
         slug = chapter.name
@@ -61,12 +65,13 @@ def main() -> int:
         if not pdf.exists():
             errors.append(f"Missing PDF: {pdf}")
             continue
+
         lines = pdf_lines(pdf)
         headings = source_headings(chapter)
         matched = 0
         aligned = 0
-        page_width = 0.0
-        details = []
+        details: list[str] = []
+
         for heading in headings:
             target = norm(heading)
             found = None
@@ -75,14 +80,13 @@ def main() -> int:
                 if target and (target in cleaned or cleaned in target):
                     found = (width, xmin, xmax, text)
                     break
+
             if not found:
                 details.append(f"- NOT FOUND: {heading}")
                 continue
+
             matched += 1
             width, xmin, xmax, text = found
-            page_width = max(page_width, width)
-            # A4 right margin is 2.35 cm ~= 66.5 pt. Permit 26 pt of renderer
-            # drift, but reject headings that are visibly left/center aligned.
             expected_right = width - 66.5
             delta = abs(xmax - expected_right)
             ok = delta <= 26.0
@@ -94,7 +98,8 @@ def main() -> int:
                     f"(xMax={xmax:.1f}, expected≈{expected_right:.1f})"
                 )
             details.append(
-                f"- {heading}: {'RIGHT' if ok else 'FAIL'}; xMax={xmax:.1f}; expected≈{expected_right:.1f}"
+                f"- {heading}: {'RIGHT' if ok else 'FAIL'}; "
+                f"xMax={xmax:.1f}; expected≈{expected_right:.1f}"
             )
 
         notes.extend([
@@ -110,6 +115,7 @@ def main() -> int:
     notes.extend(["## Result", "", "PASS" if not errors else "FAIL", ""])
     if errors:
         notes.extend(["## Errors", ""] + [f"- {e}" for e in errors])
+
     out = ROOT / "PUBLISH" / "QA" / "visual-layout-qa.md"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text("\n".join(notes), encoding="utf-8")
