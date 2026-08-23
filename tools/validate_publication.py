@@ -40,8 +40,10 @@ def validate_docx(path: Path, errors: list[str], report: list[str]) -> None:
             paragraphs = root.findall(f".//{w('p')}")
             bidi_count = 0
             rtl_run_count = 0
+            ltr_run_count = 0
             mixed_run_count = 0
-            isolate_count = 0
+            mixed_paragraphs = 0
+            bidi_control_count = 0
             table_count = 0
             bidi_table_count = 0
             rotated_cell_count = 0
@@ -54,28 +56,30 @@ def validate_docx(path: Path, errors: list[str], report: list[str]) -> None:
                     bidi_count += 1
 
                 run_elements = p.findall(f".//{w('r')}")
+                fa_present = False
+                lat_present = False
+                rtl_here = 0
+                ltr_here = 0
                 for run in run_elements:
                     rpr = run.find(w("rPr"))
-                    if rpr is not None and has_child(rpr, "rtl"):
+                    is_rtl = rpr is not None and has_child(rpr, "rtl")
+                    if is_rtl:
                         rtl_run_count += 1
+                        rtl_here += 1
+                    else:
+                        ltr_run_count += 1
+                        ltr_here += 1
                     for t in run.findall(f".//{w('t')}"):
                         value = t.text or ""
                         text_parts.append(value)
-                        isolate_count += value.count("\u2066") + value.count("\u2069")
+                        bidi_control_count += sum(ord(ch) in {0x202A, 0x202B, 0x202C, 0x202D, 0x202E, 0x2066, 0x2067, 0x2068, 0x2069} for ch in value)
+                        fa_present |= bool(re.search(r"[\u0600-\u06FF]", value))
+                        lat_present |= bool(re.search(r"[A-Za-z0-9]", value))
 
-                ptext = "".join(t.text or "" for t in p.findall(f".//{w('t')}"))
-                has_fa = bool(re.search(r"[\u0600-\u06FF]", ptext))
-                has_lat = bool(re.search(r"[A-Za-z]", ptext))
-                if has_fa and has_lat:
-                    mixed_run_count += sum(
-                        1
-                        for run in run_elements
-                        if run.find(w("rPr")) is not None
-                        and (
-                            has_child(run.find(w("rPr")), "rtl")
-                            or has_child(run.find(w("rPr")), "lang")
-                        )
-                    )
+                if fa_present and lat_present:
+                    mixed_paragraphs += 1
+                    if rtl_here and ltr_here:
+                        mixed_run_count += 1
 
             for table in root.findall(f".//{w('tbl')}"):
                 table_count += 1
@@ -95,8 +99,10 @@ def validate_docx(path: Path, errors: list[str], report: list[str]) -> None:
                 f"- paragraphs: {len(paragraphs)}",
                 f"- bidi_paragraphs: {bidi_count}",
                 f"- rtl_runs: {rtl_run_count}",
-                f"- mixed_script_run_checks: {mixed_run_count}",
-                f"- bidi_isolates: {isolate_count}",
+                f"- ltr_runs: {ltr_run_count}",
+                f"- mixed_script_paragraphs: {mixed_paragraphs}",
+                f"- mixed_direction_paragraphs: {mixed_run_count}",
+                f"- bidi_control_chars: {bidi_control_count}",
                 f"- tables: {table_count}",
                 f"- bidi_tables: {bidi_table_count}",
                 f"- rotated_text_cells: {rotated_cell_count}",
@@ -112,8 +118,10 @@ def validate_docx(path: Path, errors: list[str], report: list[str]) -> None:
                 errors.append(f"DOCX has insufficient RTL paragraph direction: {path} (bidi={bidi_count}, required>={required_bidi})")
             if rtl_run_count == 0 and re.search(r"[\u0600-\u06FF]", text):
                 errors.append(f"DOCX contains Persian text but no explicit RTL runs: {path}")
-            if mixed_run_count > 0 and isolate_count == 0:
-                errors.append(f"DOCX contains mixed Persian/Latin paragraphs but no bidi isolation markers: {path}")
+            if mixed_paragraphs and mixed_run_count < max(1, mixed_paragraphs // 20):
+                errors.append(f"DOCX mixed Persian/Latin paragraphs lack explicit direction changes: {path} (mixed={mixed_paragraphs}, explicit={mixed_run_count})")
+            if bidi_control_count:
+                errors.append(f"DOCX contains Unicode bidi control characters; explicit Word run direction should be used instead: {path} (count={bidi_control_count})")
             if table_count and bidi_table_count != table_count:
                 errors.append(f"DOCX has tables without bidiVisual RTL ordering: {path} (tables={table_count}, bidi_tables={bidi_table_count})")
             if rotated_cell_count:
