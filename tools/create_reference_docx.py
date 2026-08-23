@@ -115,14 +115,14 @@ def main() -> None:
 
     header = section.header.paragraphs[0]
     header.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    set_bool_property(header._p.get_or_add_pPr(), "w:bidi")
+    add_bool_property(header._p.get_or_add_pPr(), "w:bidi")
     r = header.add_run("تحول دیجیتال هوشمند | معماری، چارچوب‌ها و پیاده‌سازی")
     r.font.name = PERSIAN_FONT
     r.font.size = Pt(9)
 
     footer = section.footer.paragraphs[0]
     footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    set_bool_property(footer._p.get_or_add_pPr(), "w:bidi")
+    add_bool_property(footer._p.get_or_add_pPr(), "w:bidi")
     r = footer.add_run("صفحه ")
     r.font.name = PERSIAN_FONT
     r.font.size = Pt(9)
