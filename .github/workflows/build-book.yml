@@ -62,8 +62,8 @@ jobs:
             echo 'main integrated cleanly.'
           else
             echo 'Automatic merge reported conflicts. Applying publication-branch ownership to generated/RTL infrastructure files.'
-            git checkout --ours -- .github/workflows/build-book.yml tools/create_reference_docx.py PUBLISH/CHAPTERS/01-foundations/01-foundations.docx PUBLISH/CHAPTERS/01-foundations/01-foundations.pdf
-            git add .github/workflows/build-book.yml tools/create_reference_docx.py PUBLISH/CHAPTERS/01-foundations/01-foundations.docx PUBLISH/CHAPTERS/01-foundations/01-foundations.pdf
+            git checkout --ours -- .github/workflows/build-book.yml tools/create_reference_docx.py tools/finalize_docx_rtl.py tools/render_book.py PUBLISH/CHAPTERS/01-foundations/01-foundations.docx PUBLISH/CHAPTERS/01-foundations/01-foundations.pdf
+            git add .github/workflows/build-book.yml tools/create_reference_docx.py tools/finalize_docx_rtl.py tools/render_book.py PUBLISH/CHAPTERS/01-foundations/01-foundations.docx PUBLISH/CHAPTERS/01-foundations/01-foundations.pdf
             if git diff --name-only --diff-filter=U | grep -q .; then
               echo 'CONFLICT: unresolved files remain after deterministic resolution.'
               git status --short
@@ -88,8 +88,8 @@ jobs:
       - name: Render DOCX and PDF chapter files
         run: python tools/render_book.py
 
-      - name: Generate publication QA report
-        run: python tools/validate_publication.py
+      - name: Generate final publication QA
+        run: python tools/validate_publication_final.py
 
       - name: Generate visual PDF layout QA
         run: python tools/validate_visual_layout.py
