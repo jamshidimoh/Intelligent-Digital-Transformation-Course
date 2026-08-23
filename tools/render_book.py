@@ -8,6 +8,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 MARKDOWN_DIR = ROOT / "PUBLISH" / "markdown"
 OUTPUT_DIR = ROOT / "PUBLISH" / "CHAPTERS"
+REFERENCE_DOCX = ROOT / "PUBLISH" / "reference.docx"
 
 
 def run(cmd: list[str]) -> None:
@@ -24,14 +25,16 @@ def render_one(md: Path) -> None:
     pdf = chapter_dir / f"{slug}.pdf"
 
     resource_path = ROOT / "BOOK" / slug
-    run([
+    cmd = [
         "pandoc", str(md),
         "--from", "markdown",
         "--standalone",
         "--resource-path", str(resource_path),
-        "--metadata", f"title=Intelligent Digital Transformation - {slug}",
+        "--reference-doc", str(REFERENCE_DOCX),
+        "--metadata", f"title=تحول دیجیتال هوشمند - {slug}",
         "-o", str(docx),
-    ])
+    ]
+    run(cmd)
 
     lo_out = chapter_dir / "_lo"
     lo_out.mkdir(exist_ok=True)
@@ -51,6 +54,9 @@ def render_one(md: Path) -> None:
 def main() -> int:
     if not MARKDOWN_DIR.exists():
         print("Markdown build directory does not exist.", file=sys.stderr)
+        return 1
+    if not REFERENCE_DOCX.exists():
+        print("Reference DOCX template does not exist. Run tools/build_book.py first.", file=sys.stderr)
         return 1
     files = sorted(MARKDOWN_DIR.glob("*.md"))
     if not files:
