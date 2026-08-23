@@ -42,24 +42,38 @@ jobs:
       - name: Render DOCX and PDF chapter files
         run: python tools/render_book.py
 
-      - name: Validate publication outputs
+      - name: Generate publication QA report
         run: python tools/validate_publication.py
+
+      - name: Enforce publication QA gate
+        run: |
+          test -f PUBLISH/QA/01-foundations-qa.md
+          if grep -q '^FAIL$' PUBLISH/QA/01-foundations-qa.md; then
+            echo 'Publication QA gate failed.'
+            cat PUBLISH/QA/01-foundations-qa.md
+            exit 1
+          fi
+          echo 'Publication QA gate passed.'
 
       - name: Publish generated chapter files to repository
         if: github.event_name != 'pull_request'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add PUBLISH/CHAPTERS
+          git add PUBLISH/CHAPTERS PUBLISH/QA
           if git diff --cached --quiet; then
             echo "No publication changes."
             exit 0
           fi
-          git commit -m "Publish generated chapter DOCX and PDF files"
+          git commit -m "Publish generated chapter files and QA report"
           git push origin HEAD:${{ github.ref_name }}
 
-      - name: Upload publication artifacts
+      - name: Upload publication and QA artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: book-publications
-          path: PUBLISH/CHAPTERS/
+          name: book-publications-and-qa
+          path: |
+            PUBLISH/CHAPTERS/
+            PUBLISH/QA/
+          if-no-files-found: warn
