@@ -41,6 +41,7 @@ def validate_docx(path: Path, errors: list[str], report: list[str]) -> None:
             bidi_count = 0
             rtl_run_count = 0
             mixed_run_count = 0
+            isolate_count = 0
             table_count = 0
             bidi_table_count = 0
             rotated_cell_count = 0
@@ -58,10 +59,10 @@ def validate_docx(path: Path, errors: list[str], report: list[str]) -> None:
                     if rpr is not None and has_child(rpr, "rtl"):
                         rtl_run_count += 1
                     for t in run.findall(f".//{w('t')}"):
-                        text_parts.append(t.text or "")
+                        value = t.text or ""
+                        text_parts.append(value)
+                        isolate_count += value.count("\u2066") + value.count("\u2069")
 
-                # Mixed-script paragraphs should contain explicit RTL/LTR run direction
-                # when they contain both Persian/Arabic and Latin characters.
                 ptext = "".join(t.text or "" for t in p.findall(f".//{w('t')}"))
                 has_fa = bool(re.search(r"[\u0600-\u06FF]", ptext))
                 has_lat = bool(re.search(r"[A-Za-z]", ptext))
@@ -70,7 +71,10 @@ def validate_docx(path: Path, errors: list[str], report: list[str]) -> None:
                         1
                         for run in run_elements
                         if run.find(w("rPr")) is not None
-                        and (has_child(run.find(w("rPr")), "rtl") or has_child(run.find(w("rPr")), "lang"))
+                        and (
+                            has_child(run.find(w("rPr")), "rtl")
+                            or has_child(run.find(w("rPr")), "lang")
+                        )
                     )
 
             for table in root.findall(f".//{w('tbl')}"):
@@ -92,6 +96,7 @@ def validate_docx(path: Path, errors: list[str], report: list[str]) -> None:
                 f"- bidi_paragraphs: {bidi_count}",
                 f"- rtl_runs: {rtl_run_count}",
                 f"- mixed_script_run_checks: {mixed_run_count}",
+                f"- bidi_isolates: {isolate_count}",
                 f"- tables: {table_count}",
                 f"- bidi_tables: {bidi_table_count}",
                 f"- rotated_text_cells: {rotated_cell_count}",
@@ -107,6 +112,8 @@ def validate_docx(path: Path, errors: list[str], report: list[str]) -> None:
                 errors.append(f"DOCX has insufficient RTL paragraph direction: {path} (bidi={bidi_count}, required>={required_bidi})")
             if rtl_run_count == 0 and re.search(r"[\u0600-\u06FF]", text):
                 errors.append(f"DOCX contains Persian text but no explicit RTL runs: {path}")
+            if mixed_run_count > 0 and isolate_count == 0:
+                errors.append(f"DOCX contains mixed Persian/Latin paragraphs but no bidi isolation markers: {path}")
             if table_count and bidi_table_count != table_count:
                 errors.append(f"DOCX has tables without bidiVisual RTL ordering: {path} (tables={table_count}, bidi_tables={bidi_table_count})")
             if rotated_cell_count:
@@ -133,6 +140,9 @@ def validate_pdf(path: Path, errors: list[str], report: list[str]) -> None:
         text = run_capture(["pdftotext", "-enc", "UTF-8", str(path), "-"])
         persian = len(re.findall(r"[\u0600-\u06FF]", text))
         latin = len(re.findall(r"[A-Za-z]", text))
+        fonts = run_capture(["pdffonts", str(path)])
+        has_persian_font = bool(re.search(r"NotoNaskh|Noto Naskh", fonts, flags=re.IGNORECASE))
+        has_latin_font = bool(re.search(r"NotoSans|Noto Sans", fonts, flags=re.IGNORECASE))
         report.extend([
             f"PDF: {path.name}",
             f"- size_bytes: {path.stat().st_size}",
@@ -140,6 +150,8 @@ def validate_pdf(path: Path, errors: list[str], report: list[str]) -> None:
             f"- text_chars: {len(text.strip())}",
             f"- persian_chars: {persian}",
             f"- latin_chars: {latin}",
+            f"- embedded_persian_font: {has_persian_font}",
+            f"- embedded_latin_font: {has_latin_font}",
             "",
         ])
         if pages < 5:
@@ -148,13 +160,28 @@ def validate_pdf(path: Path, errors: list[str], report: list[str]) -> None:
             errors.append(f"PDF contains too little Persian text: {path} (chars={persian})")
         if latin < 500:
             errors.append(f"PDF contains too little Latin/technical text: {path} (chars={latin})")
+        if not has_persian_font:
+            errors.append(f"PDF does not embed/detect Noto Naskh Arabic: {path}")
+        if not has_latin_font:
+            errors.append(f"PDF does not embed/detect Noto Sans: {path}")
         if "filecite" in text or "sandbox:" in text or re.search(r"turn\d+(?:search|file|image)\d+", text):
             errors.append(f"PDF contains internal/tooling markers: {path}")
+
         with tempfile.TemporaryDirectory() as td:
             prefix = str(Path(td) / "page")
-            subprocess.run(["pdftoppm", "-f", "1", "-singlefile", "-png", str(path), prefix], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
-            if not Path(prefix + ".png").exists():
-                errors.append(f"PDF first-page rendering failed: {path}")
+            subprocess.run(
+                ["pdftoppm", "-png", str(path), prefix],
+                check=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            rendered = sorted(Path(td).glob("page-*.png"))
+            if len(rendered) != pages:
+                errors.append(f"PDF full-page rendering count mismatch: {path} (expected={pages}, rendered={len(rendered)})")
+            small = [p for p in rendered if p.stat().st_size < 5000]
+            if small:
+                errors.append(f"PDF has suspiciously small rendered pages: {path} (count={len(small)})")
     except subprocess.CalledProcessError as exc:
         errors.append(f"PDF validation command failed: {path} ({exc})")
     except FileNotFoundError as exc:
@@ -192,7 +219,7 @@ def main() -> int:
     if errors:
         report.extend(["## Errors", ""] + [f"- {error}" for error in errors])
     else:
-        report.append("All structural, paragraph-level RTL, run-level RTL, bilingual-text, table-direction, figure and PDF-render checks passed.")
+        report.append("All structural, paragraph-level RTL, run-level RTL, bilingual-text, table-direction, font, figure and full-page PDF-render checks passed.")
     (QA_DIR / "01-foundations-qa.md").write_text("\n".join(report) + "\n", encoding="utf-8")
 
     print(f"QA report written to {QA_DIR / '01-foundations-qa.md'}")
@@ -200,7 +227,7 @@ def main() -> int:
         for error in errors:
             print(f"QA-ERROR: {error}")
     else:
-        print(f"Validated {len(enabled)} publish-enabled chapter(s) with structural, paragraph-level RTL, run-level RTL, bilingual-text, table-direction, figure and PDF-render checks.")
+        print(f"Validated {len(enabled)} publish-enabled chapter(s) with structural, RTL, bilingual-text, font, figure and full-page PDF-render checks.")
     return 0
 
 
