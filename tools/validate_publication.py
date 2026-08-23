@@ -36,6 +36,14 @@ def is_code_like(p) -> bool:
     return "code" in style_id or text.strip().startswith(("```", "$ ", ">> "))
 
 
+def is_right_aligned(p) -> bool:
+    ppr = p.find(w("pPr"))
+    if ppr is None:
+        return False
+    jc = ppr.find(w("jc"))
+    return jc is not None and jc.attrib.get(w("val")) == "right"
+
+
 def validate_docx(path: Path, errors: list[str], report: list[str]) -> None:
     try:
         with zipfile.ZipFile(path) as zf:
@@ -49,6 +57,7 @@ def validate_docx(path: Path, errors: list[str], report: list[str]) -> None:
             paragraphs = root.findall(f".//{w('p')}")
             content_paragraphs = 0
             bidi_content_paragraphs = 0
+            right_aligned_content_paragraphs = 0
             rtl_run_count = 0
             ltr_run_count = 0
             mixed_paragraphs = 0
@@ -68,6 +77,8 @@ def validate_docx(path: Path, errors: list[str], report: list[str]) -> None:
                 ppr = p.find(w("pPr"))
                 if content and ppr is not None and has_child(ppr, "bidi"):
                     bidi_content_paragraphs += 1
+                if content and is_right_aligned(p):
+                    right_aligned_content_paragraphs += 1
 
                 has_fa = bool(re.search(r"[\u0600-\u06FF]", ptext))
                 has_lat = bool(re.search(r"[A-Za-z0-9]", ptext))
@@ -110,6 +121,7 @@ def validate_docx(path: Path, errors: list[str], report: list[str]) -> None:
                 f"- paragraphs: {len(paragraphs)}",
                 f"- content_paragraphs: {content_paragraphs}",
                 f"- bidi_content_paragraphs: {bidi_content_paragraphs}",
+                f"- right_aligned_content_paragraphs: {right_aligned_content_paragraphs}",
                 f"- rtl_runs: {rtl_run_count}",
                 f"- ltr_runs: {ltr_run_count}",
                 f"- mixed_script_paragraphs: {mixed_paragraphs}",
@@ -129,6 +141,8 @@ def validate_docx(path: Path, errors: list[str], report: list[str]) -> None:
                 errors.append(f"DOCX text content is unexpectedly short: {path}")
             if content_paragraphs and bidi_content_paragraphs < int(content_paragraphs * 0.98):
                 errors.append(f"DOCX is not predominantly whole-document RTL: {path} (bidi={bidi_content_paragraphs}, content={content_paragraphs})")
+            if content_paragraphs and right_aligned_content_paragraphs < int(content_paragraphs * 0.98):
+                errors.append(f"DOCX content paragraphs are not predominantly right-aligned: {path} (right={right_aligned_content_paragraphs}, content={content_paragraphs})")
             if mixed_paragraphs and mixed_direction_paragraphs < int(mixed_paragraphs * 0.9):
                 errors.append(f"DOCX mixed-script paragraphs lack explicit RTL/LTR run separation: {path}")
             if bidi_control_count:
@@ -209,7 +223,7 @@ def main() -> int:
     if errors:
         report.extend(["## Errors", ""] + [f"- {e}" for e in errors])
     else:
-        report.append("Publication satisfies whole-document RTL, mixed-script, table-direction, font, deterministic-figure and full-page rendering checks.")
+        report.append("Publication satisfies whole-document RTL, whole-document right alignment, mixed-script run direction, table direction, font, deterministic figure and full-page rendering checks.")
     (QA_DIR / "01-foundations-qa.md").write_text("\n".join(report) + "\n", encoding="utf-8")
     return 1 if errors else 0
 
