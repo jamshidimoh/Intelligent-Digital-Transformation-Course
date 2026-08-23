@@ -1,12 +1,18 @@
 # منابع فصل اول
 
-## منابع کتابی اصلی — ۲۰۲۵
+## منابع کتابی اصلی
 
 1. McIvor, R. (2025). *Digital Transformation: Strategies for Management Success*. Palgrave Macmillan. https://doi.org/10.1007/978-3-031-99258-2
+   - eBook published: 11 October 2025.
+   - نقش در کتاب: ستون مدیریت، استراتژی، عملیات، قابلیت‌های سازمانی و Digital Core.
 
 2. Lee, B. G. (2025). *Understanding the Digital and AI Transformation*. Springer Singapore. https://doi.org/10.1007/978-981-96-0033-5
+   - Copyright year: 2025; Springer metadata lists the eBook publication as 24 December 2024 and the softcover as 25 December 2025.
+   - نقش در کتاب: ستون مفهومی و فناوری، از مبانی تحول دیجیتال تا پلتفرم‌ها، فناوری‌های دیجیتال، AI و پیامدهای صنعتی/اجتماعی.
 
 3. Tao, F., Gadekallu, T. R., Kumar, V., Akberdina, V., & Kuzmin, E. (Eds.). (2025). *Artificial Intelligence and Digital Transformation: From Innovation to Implementation*. Springer. https://doi.org/10.1007/978-3-032-00118-4
+   - eBook published: 26 September 2025; collection based on papers presented at a conference held 16–17 December 2024.
+   - نقش در کتاب: ستون پیاده‌سازی، کاربردهای صنعتی AI، معماری‌های cloud-edge، cyber-physical systems و Digital Twin.
 
 ## مقالات علمی جدید — ۲۰۲۵ و ۲۰۲۶
 
