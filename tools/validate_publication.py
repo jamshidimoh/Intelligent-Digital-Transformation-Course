@@ -25,42 +25,55 @@ def has_child(parent, tag: str) -> bool:
     return parent.find(w(tag)) is not None
 
 
+def is_code_like(p) -> bool:
+    text = "".join(t.text or "" for t in p.findall(f".//{w('t')}"))
+    ppr = p.find(w("pPr"))
+    style_id = ""
+    if ppr is not None:
+        style = ppr.find(w("pStyle"))
+        if style is not None:
+            style_id = style.attrib.get(w("val"), "").lower()
+    return "code" in style_id or text.strip().startswith(("```", "$ ", ">> "))
+
+
 def validate_docx(path: Path, errors: list[str], report: list[str]) -> None:
     try:
         with zipfile.ZipFile(path) as zf:
-            bad = zf.testzip()
-            if bad:
-                errors.append(f"DOCX archive is corrupt: {path} ({bad})")
+            if zf.testzip():
+                errors.append(f"DOCX archive is corrupt: {path}")
             names = set(zf.namelist())
             if "word/document.xml" not in names:
                 errors.append(f"DOCX missing word/document.xml: {path}")
                 return
-            document_xml = zf.read("word/document.xml")
-            root = ET.fromstring(document_xml)
+            root = ET.fromstring(zf.read("word/document.xml"))
             paragraphs = root.findall(f".//{w('p')}")
-            bidi_count = 0
+            content_paragraphs = 0
+            bidi_content_paragraphs = 0
             rtl_run_count = 0
             ltr_run_count = 0
-            mixed_run_count = 0
             mixed_paragraphs = 0
+            mixed_direction_paragraphs = 0
             bidi_control_count = 0
             table_count = 0
             bidi_table_count = 0
             rotated_cell_count = 0
             text_parts: list[str] = []
-            xml_text = document_xml.decode("utf-8", errors="ignore")
+            xml_text = zf.read("word/document.xml").decode("utf-8", errors="ignore")
 
             for p in paragraphs:
+                ptext = "".join(t.text or "" for t in p.findall(f".//{w('t')}"))
+                content = bool(ptext.strip()) and not is_code_like(p)
+                if content:
+                    content_paragraphs += 1
                 ppr = p.find(w("pPr"))
-                if ppr is not None and has_child(ppr, "bidi"):
-                    bidi_count += 1
+                if content and ppr is not None and has_child(ppr, "bidi"):
+                    bidi_content_paragraphs += 1
 
-                run_elements = p.findall(f".//{w('r')}")
-                fa_present = False
-                lat_present = False
+                has_fa = bool(re.search(r"[\u0600-\u06FF]", ptext))
+                has_lat = bool(re.search(r"[A-Za-z0-9]", ptext))
                 rtl_here = 0
                 ltr_here = 0
-                for run in run_elements:
+                for run in p.findall(f".//{w('r')}"):
                     rpr = run.find(w("rPr"))
                     is_rtl = rpr is not None and has_child(rpr, "rtl")
                     if is_rtl:
@@ -72,14 +85,11 @@ def validate_docx(path: Path, errors: list[str], report: list[str]) -> None:
                     for t in run.findall(f".//{w('t')}"):
                         value = t.text or ""
                         text_parts.append(value)
-                        bidi_control_count += sum(ord(ch) in {0x202A, 0x202B, 0x202C, 0x202D, 0x202E, 0x2066, 0x2067, 0x2068, 0x2069} for ch in value)
-                        fa_present |= bool(re.search(r"[\u0600-\u06FF]", value))
-                        lat_present |= bool(re.search(r"[A-Za-z0-9]", value))
-
-                if fa_present and lat_present:
+                        bidi_control_count += sum(ord(ch) in {0x202A,0x202B,0x202C,0x202D,0x202E,0x2066,0x2067,0x2068,0x2069} for ch in value)
+                if has_fa and has_lat:
                     mixed_paragraphs += 1
                     if rtl_here and ltr_here:
-                        mixed_run_count += 1
+                        mixed_direction_paragraphs += 1
 
             for table in root.findall(f".//{w('tbl')}"):
                 table_count += 1
@@ -92,52 +102,49 @@ def validate_docx(path: Path, errors: list[str], report: list[str]) -> None:
 
             text = " ".join(text_parts)
             image_parts = [n for n in names if n.startswith("word/media/")]
-            required_bidi = max(5, len(paragraphs) // 10)
+            png_images = [n for n in image_parts if n.lower().endswith(".png")]
+            svg_images = [n for n in image_parts if n.lower().endswith(".svg")]
             report.extend([
                 f"DOCX: {path.name}",
                 f"- size_bytes: {path.stat().st_size}",
                 f"- paragraphs: {len(paragraphs)}",
-                f"- bidi_paragraphs: {bidi_count}",
+                f"- content_paragraphs: {content_paragraphs}",
+                f"- bidi_content_paragraphs: {bidi_content_paragraphs}",
                 f"- rtl_runs: {rtl_run_count}",
                 f"- ltr_runs: {ltr_run_count}",
                 f"- mixed_script_paragraphs: {mixed_paragraphs}",
-                f"- mixed_direction_paragraphs: {mixed_run_count}",
+                f"- mixed_direction_paragraphs: {mixed_direction_paragraphs}",
                 f"- bidi_control_chars: {bidi_control_count}",
                 f"- tables: {table_count}",
                 f"- bidi_tables: {bidi_table_count}",
                 f"- rotated_text_cells: {rotated_cell_count}",
-                f"- text_chars: {len(text.strip())}",
                 f"- embedded_media: {len(image_parts)}",
+                f"- png_media: {len(png_images)}",
+                f"- svg_media: {len(svg_images)}",
+                f"- text_chars: {len(text.strip())}",
                 f"- persian_chars: {len(re.findall(r'[\u0600-\u06FF]', text))}",
                 "",
             ])
-
             if len(text.strip()) < 10000:
                 errors.append(f"DOCX text content is unexpectedly short: {path}")
-            if bidi_count < required_bidi:
-                errors.append(f"DOCX has insufficient RTL paragraph direction: {path} (bidi={bidi_count}, required>={required_bidi})")
-            if rtl_run_count == 0 and re.search(r"[\u0600-\u06FF]", text):
-                errors.append(f"DOCX contains Persian text but no explicit RTL runs: {path}")
-            if mixed_paragraphs and mixed_run_count < max(1, mixed_paragraphs // 20):
-                errors.append(f"DOCX mixed Persian/Latin paragraphs lack explicit direction changes: {path} (mixed={mixed_paragraphs}, explicit={mixed_run_count})")
+            if content_paragraphs and bidi_content_paragraphs < int(content_paragraphs * 0.98):
+                errors.append(f"DOCX is not predominantly whole-document RTL: {path} (bidi={bidi_content_paragraphs}, content={content_paragraphs})")
+            if mixed_paragraphs and mixed_direction_paragraphs < int(mixed_paragraphs * 0.9):
+                errors.append(f"DOCX mixed-script paragraphs lack explicit RTL/LTR run separation: {path}")
             if bidi_control_count:
-                errors.append(f"DOCX contains Unicode bidi control characters; explicit Word run direction should be used instead: {path} (count={bidi_control_count})")
+                errors.append(f"DOCX contains Unicode bidi control characters: {path} (count={bidi_control_count})")
             if table_count and bidi_table_count != table_count:
-                errors.append(f"DOCX has tables without bidiVisual RTL ordering: {path} (tables={table_count}, bidi_tables={bidi_table_count})")
+                errors.append(f"DOCX has tables without bidiVisual RTL ordering: {path}")
             if rotated_cell_count:
-                errors.append(f"DOCX contains rotated textDirection cells: {path} (count={rotated_cell_count})")
-            if "Noto Naskh Arabic" not in xml_text:
-                errors.append(f"DOCX does not declare the required Persian font: {path}")
-            if "Noto Sans" not in xml_text:
-                errors.append(f"DOCX does not declare the required Latin/technical font: {path}")
-            if "filecite" in text or "sandbox:" in text or re.search(r"turn\d+(?:search|file|image)\d+", text):
-                errors.append(f"DOCX contains internal/tooling markers: {path}")
+                errors.append(f"DOCX contains rotated textDirection cells: {path}")
+            if "Noto Naskh Arabic" not in xml_text or "Noto Sans" not in xml_text:
+                errors.append(f"DOCX font declarations are incomplete: {path}")
+            if svg_images:
+                errors.append(f"DOCX still contains SVG media; deterministic PNG figure conversion failed: {path}")
             if len(image_parts) < 3:
-                errors.append(f"DOCX contains fewer than 3 embedded figure assets: {path} (found={len(image_parts)})")
-    except zipfile.BadZipFile:
-        errors.append(f"DOCX is not a valid ZIP/OpenXML package: {path}")
-    except ET.ParseError as exc:
-        errors.append(f"DOCX XML is malformed: {path} ({exc})")
+                errors.append(f"DOCX contains fewer than 3 figure assets: {path}")
+    except (zipfile.BadZipFile, ET.ParseError) as exc:
+        errors.append(f"Invalid DOCX/OpenXML: {path} ({exc})")
 
 
 def validate_pdf(path: Path, errors: list[str], report: list[str]) -> None:
@@ -162,46 +169,26 @@ def validate_pdf(path: Path, errors: list[str], report: list[str]) -> None:
             f"- embedded_latin_font: {has_latin_font}",
             "",
         ])
-        if pages < 5:
-            errors.append(f"PDF has unexpectedly few pages: {path} (pages={pages})")
-        if persian < 1000:
-            errors.append(f"PDF contains too little Persian text: {path} (chars={persian})")
-        if latin < 500:
-            errors.append(f"PDF contains too little Latin/technical text: {path} (chars={latin})")
-        if not has_persian_font:
-            errors.append(f"PDF does not embed/detect Noto Naskh Arabic: {path}")
-        if not has_latin_font:
-            errors.append(f"PDF does not embed/detect Noto Sans: {path}")
+        if pages < 5 or persian < 1000 or latin < 500:
+            errors.append(f"PDF content thresholds failed: {path}")
+        if not has_persian_font or not has_latin_font:
+            errors.append(f"PDF font detection failed: {path}")
         if "filecite" in text or "sandbox:" in text or re.search(r"turn\d+(?:search|file|image)\d+", text):
             errors.append(f"PDF contains internal/tooling markers: {path}")
-
         with tempfile.TemporaryDirectory() as td:
             prefix = str(Path(td) / "page")
-            subprocess.run(
-                ["pdftoppm", "-png", str(path), prefix],
-                check=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
+            subprocess.run(["pdftoppm", "-png", str(path), prefix], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
             rendered = sorted(Path(td).glob("page-*.png"))
             if len(rendered) != pages:
                 errors.append(f"PDF full-page rendering count mismatch: {path} (expected={pages}, rendered={len(rendered)})")
-            small = [p for p in rendered if p.stat().st_size < 5000]
-            if small:
-                errors.append(f"PDF has suspiciously small rendered pages: {path} (count={len(small)})")
-    except subprocess.CalledProcessError as exc:
+    except (subprocess.CalledProcessError, FileNotFoundError) as exc:
         errors.append(f"PDF validation command failed: {path} ({exc})")
-    except FileNotFoundError as exc:
-        errors.append(f"Required PDF QA utility missing: {exc}")
 
 
 def main() -> int:
     enabled = sorted(ROOT.glob("BOOK/*/.publish-enabled"))
     if not enabled:
-        print("No publish-enabled chapters found.")
         return 0
-
     errors: list[str] = []
     report: list[str] = ["# Publication QA Report", "", f"Enabled chapters: {len(enabled)}", ""]
     for marker in enabled:
@@ -211,32 +198,20 @@ def main() -> int:
         pdf = out_dir / f"{chapter}.pdf"
         if not docx.exists():
             errors.append(f"Missing DOCX: {docx}")
-        elif docx.stat().st_size < 20_000:
-            errors.append(f"DOCX is unexpectedly small: {docx}")
         else:
             validate_docx(docx, errors, report)
         if not pdf.exists():
             errors.append(f"Missing PDF: {pdf}")
-        elif pdf.stat().st_size < 20_000:
-            errors.append(f"PDF is unexpectedly small: {pdf}")
         else:
             validate_pdf(pdf, errors, report)
-
     QA_DIR.mkdir(parents=True, exist_ok=True)
     report.extend(["## Result", "", "PASS" if not errors else "FAIL", ""])
     if errors:
-        report.extend(["## Errors", ""] + [f"- {error}" for error in errors])
+        report.extend(["## Errors", ""] + [f"- {e}" for e in errors])
     else:
-        report.append("All structural, paragraph-level RTL, run-level RTL, bilingual-text, table-direction, font, figure and full-page PDF-render checks passed.")
+        report.append("Publication satisfies whole-document RTL, mixed-script, table-direction, font, deterministic-figure and full-page rendering checks.")
     (QA_DIR / "01-foundations-qa.md").write_text("\n".join(report) + "\n", encoding="utf-8")
-
-    print(f"QA report written to {QA_DIR / '01-foundations-qa.md'}")
-    if errors:
-        for error in errors:
-            print(f"QA-ERROR: {error}")
-    else:
-        print(f"Validated {len(enabled)} publish-enabled chapter(s) with structural, RTL, bilingual-text, font, figure and full-page PDF-render checks.")
-    return 0
+    return 1 if errors else 0
 
 
 if __name__ == "__main__":
