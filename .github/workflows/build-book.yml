@@ -91,15 +91,21 @@ jobs:
       - name: Generate publication QA report
         run: python tools/validate_publication.py
 
-      - name: Enforce publication QA gate
+      - name: Generate visual PDF layout QA
+        run: python tools/validate_visual_layout.py
+
+      - name: Enforce publication QA gates
         run: |
-          test -f PUBLISH/QA/01-foundations-qa.md
-          if grep -q '^FAIL$' PUBLISH/QA/01-foundations-qa.md; then
-            echo 'Publication QA gate failed.'
-            cat PUBLISH/QA/01-foundations-qa.md
-            exit 1
-          fi
-          echo 'Publication QA gate passed.'
+          set -euo pipefail
+          for report in PUBLISH/QA/01-foundations-qa.md PUBLISH/QA/visual-layout-qa.md; do
+            test -f "$report"
+            if grep -q '^FAIL$' "$report"; then
+              echo "Publication QA gate failed: $report"
+              cat "$report"
+              exit 1
+            fi
+          done
+          echo 'Publication QA gates passed.'
 
       - name: Publish generated outputs atomically
         if: github.event_name != 'pull_request'
