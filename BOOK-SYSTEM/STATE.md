@@ -23,13 +23,15 @@
 
 - Project: Intelligent-Digital-Transformation-Course
 - Pilot: Chapter 01 — Foundations
-- Current status: `DRAFTING`
+- Current status: `SCIENTIFIC_REVIEW`
 - Baseline: محتوای موجود در main حفظ شده و فقط به‌عنوان baseline تاریخی استفاده می‌شود.
 - Evidence pack: `BOOK/01-foundations/EVIDENCE-PACK-v1.md`
 - Outline: `BOOK/01-foundations/OUTLINE-v2.md`
 - Core references: `BOOK-SYSTEM/CORE-REFERENCES.md`
-- Completed rewrite: sections 01-introduction, 03-evolution, 04-core-concepts
-- Pending rewrite: learning objectives sync, socio-technical section, AI-enabled/AI-native section, success/failure, framework, case study, critical perspectives, summary/exercises
+- Draft status: بدنه اصلی بخش‌های 1.1 تا 1.9 بازنویسی شده و مطالعه موردی، تمرین‌ها و منابع فصل به‌روزرسانی شده‌اند.
+- Citation status: شماره‌گذاری ارجاعات کتابی یکدست‌سازی شده است.
+- Scientific review focus: صحت ادعاهای مربوط به Digital Transformation، Agentic AI، AI-Native، نقش عامل انسانی، مرزبندی تعریف‌های عملیاتی و سازگاری با نقشه ده‌فصلی.
+- Pending: اصلاحات ناشی از Scientific Review، سپس Educational Review و Fact Check.
 - Publishing gate: CLOSED
 - Last state update: 2026-08-23
 
