@@ -7,6 +7,13 @@ on:
       - 'BOOK/**'
       - 'tools/**'
       - '.github/workflows/build-book.yml'
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'BOOK/**'
+      - 'tools/**'
+      - '.github/workflows/build-book.yml'
   workflow_dispatch:
 
 permissions:
@@ -18,19 +25,35 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install rendering dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y pandoc libreoffice fonts-noto-core fonts-noto-extra librsvg2-bin
+          python -m pip install --upgrade pip
+          python -m pip install python-docx
 
-      - name: Build Markdown chapters
+      - name: Build Markdown and reference template
         run: python tools/build_book.py
 
       - name: Render DOCX and PDF chapter files
         run: python tools/render_book.py
 
-      - name: Commit published chapter files
+      - name: Validate generated publication files
+        run: |
+          test -d PUBLISH/CHAPTERS
+          found=0
+          while IFS= read -r -d '' f; do
+            found=1
+            size=$(stat -c%s "$f")
+            test "$size" -gt 10000 || { echo "Generated file is unexpectedly small: $f ($size bytes)"; exit 1; }
+          done < <(find PUBLISH/CHAPTERS -type f \( -name '*.docx' -o -name '*.pdf' \) -print0)
+          test "$found" -eq 1 || { echo 'No DOCX/PDF publication files were generated.'; exit 1; }
+
+      - name: Publish generated chapter files to repository
+        if: github.event_name != 'pull_request'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -39,7 +62,7 @@ jobs:
             echo "No publication changes."
             exit 0
           fi
-          git commit -m "Publish chapter DOCX and PDF files"
+          git commit -m "Publish generated chapter DOCX and PDF files"
           git push
 
       - name: Upload publication artifacts
