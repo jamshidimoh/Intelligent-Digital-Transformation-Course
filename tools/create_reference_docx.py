@@ -32,7 +32,7 @@ def set_fonts(rpr) -> None:
 
 
 def configure_style(style, size: float, bold: bool = False, color: RGBColor | None = None,
-                    before: float = 0, after: float = 7, line: float = 1.28,
+                    before: float = 0, after: float = 6, line: float = 1.34,
                     page_break_before: bool = False) -> None:
     style.font.name = PERSIAN_FONT
     style.font.size = Pt(size)
@@ -52,8 +52,6 @@ def configure_style(style, size: float, bold: bool = False, color: RGBColor | No
     spacing.set(qn("w:lineRule"), "auto")
     if page_break_before:
         add_bool_property(ppr, "w:pageBreakBefore")
-    # Direction is intentionally NOT attached globally to styles.
-    # The postprocessor determines paragraph direction from actual content.
     add_bool_property(ppr, "w:widowControl")
     if style.name.startswith("Heading"):
         add_bool_property(ppr, "w:keepNext")
@@ -62,6 +60,8 @@ def configure_style(style, size: float, bold: bool = False, color: RGBColor | No
 def configure_cell_style(style) -> None:
     style.font.name = PERSIAN_FONT
     style.font.size = Pt(10.5)
+    style.paragraph_format.space_after = Pt(2)
+    style.paragraph_format.line_spacing = 1.08
     rpr = style._element.get_or_add_rPr()
     set_fonts(rpr)
 
@@ -72,16 +72,16 @@ def main() -> None:
     section = doc.sections[0]
     section.page_width = Cm(21)
     section.page_height = Cm(29.7)
-    section.top_margin = Cm(2.4)
-    section.bottom_margin = Cm(2.3)
-    section.left_margin = Cm(2.7)
-    section.right_margin = Cm(2.3)
+    section.top_margin = Cm(2.35)
+    section.bottom_margin = Cm(2.2)
+    section.left_margin = Cm(2.55)
+    section.right_margin = Cm(2.35)
     section.header_distance = Cm(0.9)
     section.footer_distance = Cm(0.9)
 
     styles = doc.styles
     configure_style(styles["Normal"], 12.5, False, None, 0, 6, 1.34)
-    styles["Normal"].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    styles["Normal"].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     styles["Normal"].paragraph_format.first_line_indent = Cm(0.42)
 
     configure_style(styles["Title"], 21, True, ACCENT, 0, 8, 1.1)
@@ -101,27 +101,32 @@ def main() -> None:
         styles[name].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.RIGHT
         styles[name].paragraph_format.first_line_indent = Cm(0)
 
+    for name in ("List Bullet", "List Number", "List Bullet 2", "List Number 2", "Quote", "Intense Quote"):
+        if name in styles:
+            configure_cell_style(styles[name])
+            styles[name].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            styles[name].paragraph_format.first_line_indent = Cm(0)
+
     if "Caption" in styles:
         configure_style(styles["Caption"], 10.5, False, RGBColor(70, 70, 70), 4, 8, 1.12)
         styles["Caption"].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
         styles["Caption"].paragraph_format.first_line_indent = Cm(0)
 
-    if "Table Contents" in styles:
-        configure_cell_style(styles["Table Contents"])
+    for style_name in ("Table Contents", "Table Heading"):
+        if style_name in styles:
+            configure_cell_style(styles[style_name])
+            styles[style_name].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     if "Table Heading" in styles:
-        configure_cell_style(styles["Table Heading"])
         styles["Table Heading"].font.bold = True
 
     header = section.header.paragraphs[0]
     header.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    add_bool_property(header._p.get_or_add_pPr(), "w:bidi")
     r = header.add_run("تحول دیجیتال هوشمند | معماری، چارچوب‌ها و پیاده‌سازی")
     r.font.name = PERSIAN_FONT
     r.font.size = Pt(9)
 
     footer = section.footer.paragraphs[0]
     footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    add_bool_property(footer._p.get_or_add_pPr(), "w:bidi")
     r = footer.add_run("صفحه ")
     r.font.name = PERSIAN_FONT
     r.font.size = Pt(9)
