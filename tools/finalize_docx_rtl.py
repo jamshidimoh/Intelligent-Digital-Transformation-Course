@@ -2,17 +2,18 @@ from __future__ import annotations
 
 from pathlib import Path
 import re
-import sys
 import tempfile
 import zipfile
 import xml.etree.ElementTree as ET
+import sys
 
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
-NS = {"w": W}
 ET.register_namespace("w", W)
 PERSIAN_FONT = "Noto Naskh Arabic"
 LATIN_FONT = "Noto Sans"
+RLM = "\u200f"
 FA_RE = re.compile(r"[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]")
+LATIN_RE = re.compile(r"[A-Za-z0-9]")
 
 
 def w(tag: str) -> str:
@@ -72,11 +73,53 @@ def has_drawing(p) -> bool:
     return p.find(".//" + w("drawing")) is not None
 
 
+def set_run_direction(r, rtl: bool) -> None:
+    rpr = ensure(r, "rPr")
+    set_bool(rpr, "rtl", rtl)
+    lang = ensure(rpr, "lang")
+    lang.set(w("val"), "fa-IR" if rtl else "en-US")
+    rfonts = ensure(rpr, "rFonts")
+    rfonts.set(w("ascii"), LATIN_FONT)
+    rfonts.set(w("hAnsi"), LATIN_FONT)
+    rfonts.set(w("cs"), PERSIAN_FONT if rtl else LATIN_FONT)
+    rfonts.set(w("eastAsia"), LATIN_FONT)
+
+
+def make_anchor_r(run, text: str):
+    anchor = ET.Element(w("r"))
+    rpr = ET.SubElement(anchor, w("rPr"))
+    set_run_direction(anchor, True)
+    t = ET.SubElement(anchor, w("t"))
+    t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+    t.text = text
+    return anchor
+
+
+def anchor_ltr_runs(p) -> None:
+    children = list(p)
+    for idx, child in enumerate(children):
+        if child.tag != w("r"):
+            continue
+        txt = "".join((t.text or "") for t in child.findall(".//" + w("t")))
+        if not txt or not LATIN_RE.search(txt):
+            continue
+        # Runs already anchored are left untouched.
+        if RLM in txt:
+            continue
+        rpr = child.find(w("rPr"))
+        is_rtl = rpr is not None and rpr.find(w("rtl")) is not None
+        if is_rtl:
+            continue
+        left_anchor = make_anchor_r(child, RLM)
+        right_anchor = make_anchor_r(child, RLM)
+        p.insert(idx, left_anchor)
+        p.insert(idx + 2, right_anchor)
+
+
 def fix_paragraph(p) -> None:
     ppr = ensure(p, "pPr")
     sid = style_id(p)
     sid_l = sid.lower()
-    text = paragraph_text(p)
     code = is_code(p)
     caption = sid_l == "caption"
     drawing = has_drawing(p)
@@ -101,16 +144,11 @@ def fix_paragraph(p) -> None:
 
     for r in p.findall(".//" + w("r")):
         txt = "".join((t.text or "") for t in r.findall(".//" + w("t")))
-        rpr = ensure(r, "rPr")
-        rtl = bool(FA_RE.search(txt))
-        set_bool(rpr, "rtl", rtl)
-        lang = ensure(rpr, "lang")
-        lang.set(w("val"), "fa-IR" if rtl else "en-US")
-        rfonts = ensure(rpr, "rFonts")
-        rfonts.set(w("ascii"), LATIN_FONT)
-        rfonts.set(w("hAnsi"), LATIN_FONT)
-        rfonts.set(w("cs"), PERSIAN_FONT if rtl else LATIN_FONT)
-        rfonts.set(w("eastAsia"), LATIN_FONT)
+        rtl = bool(FA_RE.search(txt)) or RLM in txt
+        set_run_direction(r, rtl)
+
+    if not code and not caption and not drawing:
+        anchor_ltr_runs(p)
 
 
 def fix_xml(data: bytes) -> bytes:
