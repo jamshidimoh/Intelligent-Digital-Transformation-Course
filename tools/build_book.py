@@ -24,6 +24,14 @@ def eligible_chapters() -> list[Path]:
     return [p for p in chapters if (p / PUBLICATION_MARKER).exists()]
 
 
+def normalize_assets(markdown: str) -> str:
+    # The merged Markdown lives in PUBLISH/markdown, so chapter-relative image
+    # paths such as ../figures/x.svg would point outside the chapter assets.
+    markdown = re.sub(r"\]\(\.\./figures/", "](figures/", markdown)
+    markdown = re.sub(r"src=[\"']\.\./figures/", "src=\"figures/", markdown)
+    return markdown
+
+
 def build_chapter(chapter_dir: Path) -> Path:
     parts = [chapter_dir / "chapter.md"]
     parts += chapter_sections(chapter_dir)
@@ -33,7 +41,9 @@ def build_chapter(chapter_dir: Path) -> Path:
 
     output = DIST / "markdown" / f"{chapter_dir.name}.md"
     output.parent.mkdir(parents=True, exist_ok=True)
-    merged = "\n\n---\n\n".join(p.read_text(encoding="utf-8") for p in parts)
+    merged = "\n\n---\n\n".join(
+        normalize_assets(p.read_text(encoding="utf-8")) for p in parts
+    )
     output.write_text(merged, encoding="utf-8")
     return output
 
@@ -50,7 +60,6 @@ def main() -> int:
         print("No publication-eligible chapters found.", file=sys.stderr)
         return 1
 
-    # Rebuild only eligible chapters; non-eligible chapters never enter PUBLISH.
     markdown_dir = DIST / "markdown"
     if markdown_dir.exists():
         for old in markdown_dir.glob("*.md"):
