@@ -20,9 +20,6 @@ FA_RE = re.compile(r"[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70
 LATIN_RE = re.compile(r"[A-Za-z]")
 NUMBER_RE = re.compile(r"\d")
 
-LRI = "\u2066"
-PDI = "\u2069"
-
 
 def set_bool(parent, tag: str, enabled: bool = True) -> None:
     node = parent.find(qn(tag))
@@ -64,12 +61,10 @@ def get_text(run_el) -> str:
 
 def dominant_direction(text: str) -> str:
     fa = len(FA_RE.findall(text))
-    en = len(LATIN_RE.findall(text))
-    if fa > 0 and fa >= en:
-        return "fa"
-    if en > 0:
-        return "en"
-    return "neutral"
+    en = len(LATIN_RE.findall(text)) + len(NUMBER_RE.findall(text))
+    if fa == 0 and en == 0:
+        return "neutral"
+    return "fa" if fa >= en else "en"
 
 
 def classify_char(ch: str) -> str:
@@ -90,8 +85,6 @@ def tokenize_mixed(text: str) -> list[tuple[str, str]]:
     for ch in text:
         kind = classify_char(ch)
         if kind == "neutral":
-            if current_kind is None:
-                current_kind = "neutral"
             current.append(ch)
             continue
         if current_kind is None:
@@ -105,25 +98,29 @@ def tokenize_mixed(text: str) -> list[tuple[str, str]]:
     if current:
         chunks.append((current_kind or "neutral", "".join(current)))
 
+    # Attach punctuation/whitespace to the preceding run so punctuation does not
+    # become an independent bidi run that LibreOffice can reorder unexpectedly.
     merged: list[tuple[str, str]] = []
     for kind, piece in chunks:
-        if kind == "neutral" and merged:
-            prev_kind, prev_piece = merged[-1]
-            merged[-1] = (prev_kind, prev_piece + piece)
+        if kind == "neutral":
+            if merged:
+                pk, pt = merged[-1]
+                merged[-1] = (pk, pt + piece)
+            else:
+                merged.append(("en", piece))
         else:
             merged.append((kind, piece))
     return [(k, t) for k, t in merged if t]
 
 
-def make_run_clone(run_el, text: str, rtl: bool, isolate_ltr: bool = False):
+def make_run_clone(run_el, text: str, rtl: bool):
     clone = deepcopy(run_el)
     t_nodes = clone.findall(".//" + qn("w:t"))
     if not t_nodes:
         return clone
     for node in t_nodes:
         node.text = ""
-    value = (LRI + text + PDI) if isolate_ltr and text.strip() else text
-    t_nodes[0].text = value
+    t_nodes[0].text = text
     set_run_direction(clone, rtl)
     return clone
 
@@ -137,21 +134,15 @@ def replace_run_with_bidi_safe_chunks(run) -> None:
     if parent is None:
         return
 
-    direction = dominant_direction(text)
-    if direction == "neutral":
-        set_run_direction(run_el, False)
-        return
-
     chunks = tokenize_mixed(text)
     meaningful = [(k, t) for k, t in chunks if any(c.isalnum() for c in t)]
     if len(meaningful) <= 1:
-        set_run_direction(run_el, direction == "fa")
+        set_run_direction(run_el, dominant_direction(text) == "fa")
         return
 
     index = parent.index(run_el)
     for kind, piece in chunks:
-        rtl = kind == "fa"
-        parent.insert(index, make_run_clone(run_el, piece, rtl, isolate_ltr=(not rtl)))
+        parent.insert(index, make_run_clone(run_el, piece, kind == "fa"))
         index += 1
     parent.remove(run_el)
 
