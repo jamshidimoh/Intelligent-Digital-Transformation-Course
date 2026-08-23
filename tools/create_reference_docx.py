@@ -20,13 +20,9 @@ def add_bool_property(parent, tag: str) -> None:
         parent.append(OxmlElement(tag))
 
 
-def set_rtl(paragraph) -> None:
-    p_pr = paragraph._p.get_or_add_pPr()
-    add_bool_property(p_pr, "w:bidi")
-
-
 def configure_style(style, size: float, bold: bool = False, color: RGBColor | None = None,
-                    before: float = 0, after: float = 7, line: float = 1.28) -> None:
+                    before: float = 0, after: float = 7, line: float = 1.28,
+                    page_break_before: bool = False) -> None:
     style.font.name = PERSIAN_FONT
     style.font.size = Pt(size)
     style.font.bold = bold
@@ -50,16 +46,10 @@ def configure_style(style, size: float, bold: bool = False, color: RGBColor | No
     spacing.set(qn("w:after"), str(round(after * 20)))
     spacing.set(qn("w:line"), str(round(line * 240)))
     spacing.set(qn("w:lineRule"), "auto")
+    if page_break_before:
+        add_bool_property(ppr, "w:pageBreakBefore")
     add_bool_property(ppr, "w:bidi")
-
-
-def add_keep_with_next(style) -> None:
-    ppr = style._element.get_or_add_pPr()
     add_bool_property(ppr, "w:keepNext")
-
-
-def add_widow_control(style) -> None:
-    ppr = style._element.get_or_add_pPr()
     add_bool_property(ppr, "w:widowControl")
 
 
@@ -74,6 +64,7 @@ def configure_cell_style(style) -> None:
     rfonts.set(qn("w:ascii"), LATIN_FONT)
     rfonts.set(qn("w:hAnsi"), LATIN_FONT)
     rfonts.set(qn("w:cs"), PERSIAN_FONT)
+    rfonts.set(qn("w:eastAsia"), LATIN_FONT)
 
 
 def main() -> None:
@@ -93,33 +84,28 @@ def main() -> None:
     configure_style(styles["Normal"], 12.2, False, None, 0, 7, 1.28)
     styles["Normal"].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
     styles["Normal"].paragraph_format.first_line_indent = Cm(0.45)
-    add_widow_control(styles["Normal"])
 
-    configure_style(styles["Title"], 21, True, ACCENT, 0, 10, 1.15)
+    configure_style(styles["Title"], 21, True, ACCENT, 0, 8, 1.1)
     styles["Title"].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     styles["Title"].paragraph_format.first_line_indent = Cm(0)
-    add_keep_with_next(styles["Title"])
 
     if "Subtitle" in styles:
-        configure_style(styles["Subtitle"], 14, False, ACCENT, 0, 16, 1.2)
+        configure_style(styles["Subtitle"], 14, False, ACCENT, 0, 15, 1.15)
         styles["Subtitle"].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.RIGHT
         styles["Subtitle"].paragraph_format.first_line_indent = Cm(0)
-        add_keep_with_next(styles["Subtitle"])
 
-    configure_style(styles["Heading 1"], 17, True, ACCENT, 16, 8, 1.15)
-    configure_style(styles["Heading 2"], 14.5, True, ACCENT, 12, 6, 1.15)
-    configure_style(styles["Heading 3"], 13.2, True, ACCENT, 10, 5, 1.15)
-    configure_style(styles["Heading 4"], 12.3, True, ACCENT, 8, 4, 1.15)
+    configure_style(styles["Heading 1"], 17, True, ACCENT, 18, 9, 1.12, True)
+    configure_style(styles["Heading 2"], 14.5, True, ACCENT, 12, 6, 1.12)
+    configure_style(styles["Heading 3"], 13.2, True, ACCENT, 10, 5, 1.12)
+    configure_style(styles["Heading 4"], 12.3, True, ACCENT, 8, 4, 1.12)
     for name in ("Heading 1", "Heading 2", "Heading 3", "Heading 4"):
         styles[name].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.RIGHT
         styles[name].paragraph_format.first_line_indent = Cm(0)
-        add_keep_with_next(styles[name])
 
     if "Caption" in styles:
-        configure_style(styles["Caption"], 10.5, False, RGBColor(70, 70, 70), 4, 8, 1.15)
+        configure_style(styles["Caption"], 10.5, False, RGBColor(70, 70, 70), 4, 8, 1.12)
         styles["Caption"].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
         styles["Caption"].paragraph_format.first_line_indent = Cm(0)
-        add_keep_with_next(styles["Caption"])
 
     if "Table Contents" in styles:
         configure_cell_style(styles["Table Contents"])
@@ -129,14 +115,14 @@ def main() -> None:
 
     header = section.header.paragraphs[0]
     header.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    set_rtl(header)
+    set_bool_property(header._p.get_or_add_pPr(), "w:bidi")
     r = header.add_run("تحول دیجیتال هوشمند | معماری، چارچوب‌ها و پیاده‌سازی")
     r.font.name = PERSIAN_FONT
     r.font.size = Pt(9)
 
     footer = section.footer.paragraphs[0]
     footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    set_rtl(footer)
+    set_bool_property(footer._p.get_or_add_pPr(), "w:bidi")
     r = footer.add_run("صفحه ")
     r.font.name = PERSIAN_FONT
     r.font.size = Pt(9)
@@ -144,7 +130,6 @@ def main() -> None:
     fld.set(qn("w:instr"), "PAGE")
     footer._p.append(fld)
 
-    # Ensure template styles exist; content is supplied later by Pandoc.
     doc.save(OUT)
     print(OUT)
 
