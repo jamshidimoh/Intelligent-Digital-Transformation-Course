@@ -3,7 +3,7 @@
 Enabled chapters: 1
 
 DOCX: 01-foundations.docx
-- size_bytes: 268474
+- size_bytes: 268475
 - paragraphs: 474
 - content_paragraphs: 471
 - bidi_content_paragraphs: 471
