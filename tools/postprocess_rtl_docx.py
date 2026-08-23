@@ -81,7 +81,6 @@ def tokenize_mixed(text: str) -> list[tuple[str, str]]:
     chunks: list[tuple[str, str]] = []
     current: list[str] = []
     current_kind: str | None = None
-
     for ch in text:
         kind = classify_char(ch)
         if kind == "neutral":
@@ -94,12 +93,9 @@ def tokenize_mixed(text: str) -> list[tuple[str, str]]:
             current = []
             current_kind = kind
         current.append(ch)
-
     if current:
         chunks.append((current_kind or "neutral", "".join(current)))
 
-    # Attach punctuation/whitespace to the preceding run so punctuation does not
-    # become an independent bidi run that LibreOffice can reorder unexpectedly.
     merged: list[tuple[str, str]] = []
     for kind, piece in chunks:
         if kind == "neutral":
@@ -133,13 +129,11 @@ def replace_run_with_bidi_safe_chunks(run) -> None:
     parent = run_el.getparent()
     if parent is None:
         return
-
     chunks = tokenize_mixed(text)
     meaningful = [(k, t) for k, t in chunks if any(c.isalnum() for c in t)]
     if len(meaningful) <= 1:
         set_run_direction(run_el, dominant_direction(text) == "fa")
         return
-
     index = parent.index(run_el)
     for kind, piece in chunks:
         parent.insert(index, make_run_clone(run_el, piece, kind == "fa"))
@@ -156,6 +150,21 @@ def paragraph_is_code_like(paragraph) -> bool:
     style_name = paragraph.style.name.lower() if paragraph.style else ""
     text = paragraph.text or ""
     return "code" in style_name or text.strip().startswith(("```", "$ ", ">> "))
+
+
+def tune_style(styles, name: str, size: float, before: float, after: float, line: float) -> None:
+    if name not in styles:
+        return
+    s = styles[name]
+    s.font.name = PERSIAN_FONT
+    s.font.size = Pt(size)
+    s.paragraph_format.space_before = Pt(before)
+    s.paragraph_format.space_after = Pt(after)
+    s.paragraph_format.line_spacing = line
+    s.paragraph_format.first_line_indent = Cm(0)
+    ppr = s._element.get_or_add_pPr()
+    set_bool(ppr, "w:bidi", False)
+    set_bool(ppr, "w:widowControl", True)
 
 
 def tune_styles(doc: Document) -> None:
@@ -187,8 +196,21 @@ def tune_styles(doc: Document) -> None:
             s.paragraph_format.line_spacing = line
             s.paragraph_format.first_line_indent = Cm(0)
             ppr = s._element.get_or_add_pPr()
+            set_bool(ppr, "w:bidi", False)
             set_bool(ppr, "w:keepNext", True)
             set_bool(ppr, "w:widowControl", True)
+
+    tune_style(styles, "List Bullet", 12.2, 0, 3, 1.28)
+    tune_style(styles, "List Number", 12.2, 0, 3, 1.28)
+    tune_style(styles, "List Bullet 2", 11.8, 0, 2, 1.25)
+    tune_style(styles, "List Number 2", 11.8, 0, 2, 1.25)
+    tune_style(styles, "Quote", 12.2, 5, 7, 1.28)
+    tune_style(styles, "Intense Quote", 12.2, 5, 7, 1.28)
+
+    for name in ("List Bullet", "List Number", "List Bullet 2", "List Number 2"):
+        if name in styles:
+            styles[name].paragraph_format.left_indent = Cm(0.4)
+            styles[name].paragraph_format.right_indent = Cm(0.2)
 
     if "Caption" in styles:
         s = styles["Caption"]
@@ -226,15 +248,23 @@ def configure_paragraph(paragraph) -> None:
     is_rtl = direction == "fa"
     set_paragraph_bidi(paragraph, is_rtl)
 
-    if paragraph.style.name.startswith("Heading"):
+    style_name = paragraph.style.name or ""
+    is_list = style_name.startswith("List ")
+    is_quote = style_name in {"Quote", "Intense Quote"}
+
+    if style_name.startswith("Heading"):
         paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT if is_rtl else WD_ALIGN_PARAGRAPH.LEFT
         paragraph.paragraph_format.first_line_indent = Cm(0)
     elif is_rtl:
-        paragraph.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-        paragraph.paragraph_format.first_line_indent = Cm(0.42)
+        paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT if is_list or is_quote else WD_ALIGN_PARAGRAPH.JUSTIFY
+        paragraph.paragraph_format.first_line_indent = Cm(0.42 if not is_list else 0)
     else:
         paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
         paragraph.paragraph_format.first_line_indent = Cm(0)
+
+    if is_list:
+        paragraph.paragraph_format.left_indent = Cm(0.4)
+        paragraph.paragraph_format.right_indent = Cm(0.2)
 
     for run in list(paragraph.runs):
         replace_run_with_bidi_safe_chunks(run)
