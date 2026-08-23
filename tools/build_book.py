@@ -9,11 +9,19 @@ ROOT = Path(__file__).resolve().parents[1]
 BOOK = ROOT / "BOOK"
 DIST = ROOT / "PUBLISH"
 REFERENCE_DOCX = DIST / "reference-template.docx"
+PUBLICATION_MARKER = ".publish-enabled"
 
 
 def chapter_sections(chapter_dir: Path) -> list[Path]:
     sections_dir = chapter_dir / "sections"
     return sorted(sections_dir.glob("*.md"), key=lambda p: p.name)
+
+
+def eligible_chapters() -> list[Path]:
+    chapters = sorted(
+        p for p in BOOK.iterdir() if p.is_dir() and re.match(r"^\d{2}-", p.name)
+    )
+    return [p for p in chapters if (p / PUBLICATION_MARKER).exists()]
 
 
 def build_chapter(chapter_dir: Path) -> Path:
@@ -37,17 +45,23 @@ def create_reference_docx() -> None:
 
 
 def main() -> int:
-    chapter_dirs = sorted(
-        p for p in BOOK.iterdir() if p.is_dir() and re.match(r"^\d{2}-", p.name)
-    )
-    if not chapter_dirs:
-        print("No chapter directories found.", file=sys.stderr)
+    chapters = eligible_chapters()
+    if not chapters:
+        print("No publication-eligible chapters found.", file=sys.stderr)
         return 1
 
+    # Rebuild only eligible chapters; non-eligible chapters never enter PUBLISH.
+    markdown_dir = DIST / "markdown"
+    if markdown_dir.exists():
+        for old in markdown_dir.glob("*.md"):
+            old.unlink()
     create_reference_docx()
-    for chapter in chapter_dirs:
+    for chapter in chapters:
         md = build_chapter(chapter)
         print(f"Built {md}")
+    print("Publication-eligible chapters:")
+    for chapter in chapters:
+        print(f"- {chapter.name}")
     return 0
 
 
