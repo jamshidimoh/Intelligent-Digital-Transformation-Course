@@ -2,31 +2,34 @@ from __future__ import annotations
 
 from pathlib import Path
 from docx import Document
-from docx.enum.section import WD_SECTION
-from docx.enum.style import WD_STYLE_TYPE
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import Cm, Pt
+from docx.shared import Cm, Pt, RGBColor
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "PUBLISH" / "reference-template.docx"
 
 PERSIAN_FONT = "Noto Naskh Arabic"
 LATIN_FONT = "Noto Sans"
+ACCENT = RGBColor(31, 61, 82)
+
+
+def add_bool_property(parent, tag: str) -> None:
+    if parent.find(qn(tag)) is None:
+        parent.append(OxmlElement(tag))
 
 
 def set_rtl(paragraph) -> None:
     p_pr = paragraph._p.get_or_add_pPr()
-    bidi = p_pr.find(qn("w:bidi"))
-    if bidi is None:
-        bidi = OxmlElement("w:bidi")
-        p_pr.append(bidi)
+    add_bool_property(p_pr, "w:bidi")
 
 
-def set_run_font(run) -> None:
-    run.font.name = LATIN_FONT
-    run.font.size = Pt(12)
+def set_run_font(run, persian: bool = False, size: float = 12, bold: bool | None = None) -> None:
+    run.font.name = PERSIAN_FONT if persian else LATIN_FONT
+    run.font.size = Pt(size)
+    if bold is not None:
+        run.font.bold = bold
     rpr = run._r.get_or_add_rPr()
     rfonts = rpr.rFonts
     if rfonts is None:
@@ -38,10 +41,13 @@ def set_run_font(run) -> None:
     rfonts.set(qn("w:eastAsia"), LATIN_FONT)
 
 
-def configure_style(style, size: int, bold: bool = False, space_before: int = 0, space_after: int = 6) -> None:
-    style.font.name = LATIN_FONT
+def configure_style(style, size: float, bold: bool = False, color: RGBColor | None = None,
+                    before: float = 0, after: float = 7, line: float = 1.28) -> None:
+    style.font.name = PERSIAN_FONT
     style.font.size = Pt(size)
     style.font.bold = bold
+    if color:
+        style.font.color.rgb = color
     rpr = style._element.get_or_add_rPr()
     rfonts = rpr.rFonts
     if rfonts is None:
@@ -50,75 +56,102 @@ def configure_style(style, size: int, bold: bool = False, space_before: int = 0,
     rfonts.set(qn("w:ascii"), LATIN_FONT)
     rfonts.set(qn("w:hAnsi"), LATIN_FONT)
     rfonts.set(qn("w:cs"), PERSIAN_FONT)
+    rfonts.set(qn("w:eastAsia"), LATIN_FONT)
     ppr = style._element.get_or_add_pPr()
     spacing = ppr.find(qn("w:spacing"))
     if spacing is None:
         spacing = OxmlElement("w:spacing")
         ppr.append(spacing)
-    spacing.set(qn("w:before"), str(space_before * 20))
-    spacing.set(qn("w:after"), str(space_after * 20))
-    spacing.set(qn("w:line"), "312")
+    spacing.set(qn("w:before"), str(round(before * 20)))
+    spacing.set(qn("w:after"), str(round(after * 20)))
+    spacing.set(qn("w:line"), str(round(line * 240)))
     spacing.set(qn("w:lineRule"), "auto")
+    add_bool_property(ppr, "w:bidi")
+
+
+def add_keep_with_next(style) -> None:
+    ppr = style._element.get_or_add_pPr()
+    add_bool_property(ppr, "w:keepNext")
+
+
+def add_widow_control(style) -> None:
+    ppr = style._element.get_or_add_pPr()
+    add_bool_property(ppr, "w:widowControl")
 
 
 def main() -> None:
     OUT.parent.mkdir(parents=True, exist_ok=True)
     doc = Document()
     section = doc.sections[0]
-    section.top_margin = Cm(2.5)
-    section.bottom_margin = Cm(2.5)
-    section.left_margin = Cm(2.5)
-    section.right_margin = Cm(2.5)
-    section.header_distance = Cm(1.2)
-    section.footer_distance = Cm(1.2)
+    section.page_width = Cm(21)
+    section.page_height = Cm(29.7)
+    section.top_margin = Cm(2.4)
+    section.bottom_margin = Cm(2.3)
+    section.left_margin = Cm(2.8)
+    section.right_margin = Cm(2.1)
+    section.header_distance = Cm(1.0)
+    section.footer_distance = Cm(1.0)
 
     styles = doc.styles
-    configure_style(styles["Normal"], 12, False, 0, 7)
+    configure_style(styles["Normal"], 12.2, False, None, 0, 7, 1.28)
     styles["Normal"].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-    styles["Normal"].paragraph_format.line_spacing = 1.3
+    styles["Normal"].paragraph_format.first_line_indent = Cm(0.45)
+    add_widow_control(styles["Normal"])
 
-    configure_style(styles["Title"], 20, True, 0, 14)
-    styles["Title"].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    configure_style(styles["Heading 1"], 16, True, 16, 8)
-    configure_style(styles["Heading 2"], 14, True, 12, 6)
-    configure_style(styles["Heading 3"], 13, True, 10, 5)
-    configure_style(styles["Heading 4"], 12, True, 8, 4)
+    configure_style(styles["Title"], 21, True, ACCENT, 0, 10, 1.15)
+    styles["Title"].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    styles["Title"].paragraph_format.first_line_indent = Cm(0)
+    add_keep_with_next(styles["Title"])
+
+    configure_style(styles["Subtitle"], 14, False, ACCENT, 0, 16, 1.2)
+    styles["Subtitle"].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    styles["Subtitle"].paragraph_format.first_line_indent = Cm(0)
+    add_keep_with_next(styles["Subtitle"])
+
+    configure_style(styles["Heading 1"], 17, True, ACCENT, 16, 8, 1.15)
+    configure_style(styles["Heading 2"], 14.5, True, ACCENT, 12, 6, 1.15)
+    configure_style(styles["Heading 3"], 13.2, True, ACCENT, 10, 5, 1.15)
+    configure_style(styles["Heading 4"], 12.3, True, ACCENT, 8, 4, 1.15)
+    for name in ("Heading 1", "Heading 2", "Heading 3", "Heading 4"):
+        styles[name].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        styles[name].paragraph_format.first_line_indent = Cm(0)
+        add_keep_with_next(styles[name])
+
     if "Caption" in styles:
-        configure_style(styles["Caption"], 10, False, 4, 8)
+        configure_style(styles["Caption"], 10.5, False, RGBColor(70, 70, 70), 4, 8, 1.15)
         styles["Caption"].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        styles["Caption"].paragraph_format.first_line_indent = Cm(0)
+        add_keep_with_next(styles["Caption"])
 
-    for style_name in ("Normal", "Title", "Heading 1", "Heading 2", "Heading 3", "Heading 4", "Caption"):
-        style = styles[style_name]
-        ppr = style._element.get_or_add_pPr()
-        bidi = ppr.find(qn("w:bidi"))
-        if bidi is None:
-            bidi = OxmlElement("w:bidi")
-            ppr.append(bidi)
+    # Ensure all core styles carry an RTL paragraph property and clean paragraph metrics.
+    for style_name in ("Normal", "Title", "Subtitle", "Heading 1", "Heading 2", "Heading 3", "Heading 4", "Caption"):
+        if style_name not in styles:
+            continue
+        set_rtl_style = styles[style_name]._element.get_or_add_pPr()
+        add_bool_property(set_rtl_style, "w:bidi")
 
-    # Header/footer defaults; chapter metadata is added by the renderer.
     header = section.header.paragraphs[0]
     header.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     set_rtl(header)
-    run = header.add_run("تحول دیجیتال ۲.۰")
-    run.font.size = Pt(9)
-    set_run_font(run)
+    run = header.add_run("تحول دیجیتال هوشمند | معماری، چارچوب‌ها و پیاده‌سازی")
+    set_run_font(run, persian=True, size=9)
 
     footer = section.footer.paragraphs[0]
     footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
     set_rtl(footer)
     run = footer.add_run("صفحه ")
-    run.font.size = Pt(9)
-    set_run_font(run)
+    set_run_font(run, persian=True, size=9)
     fld = OxmlElement("w:fldSimple")
     fld.set(qn("w:instr"), "PAGE")
     footer._p.append(fld)
 
-    # Seed paragraphs so Pandoc imports the configured style definitions.
-    p = doc.add_paragraph()
-    p.style = styles["Normal"]
-    set_rtl(p)
-    r = p.add_run("")
-    set_run_font(r)
+    # Seed paragraphs so Pandoc preserves the configured style definitions.
+    for style_name in ("Normal", "Title", "Subtitle", "Heading 1", "Heading 2", "Heading 3", "Heading 4", "Caption"):
+        p = doc.add_paragraph(style=styles[style_name])
+        set_rtl(p)
+        r = p.add_run("")
+        set_run_font(r, persian=True, size=float(styles[style_name].font.size.pt if styles[style_name].font.size else 12))
+
     doc.save(OUT)
     print(OUT)
 
