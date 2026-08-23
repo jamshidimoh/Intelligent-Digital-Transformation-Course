@@ -23,8 +23,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y pandoc libreoffice fonts-noto-core fonts-noto-extra librsvg2-bin
+          python -m pip install --upgrade pip
+          python -m pip install python-docx
 
-      - name: Build Markdown chapters
+      - name: Build Markdown and reference template
         run: python tools/build_book.py
 
       - name: Render DOCX and PDF chapter files
