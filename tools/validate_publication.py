@@ -9,6 +9,7 @@ import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "PUBLISH" / "CHAPTERS"
+QA_DIR = ROOT / "PUBLISH" / "QA"
 W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 
 
@@ -16,7 +17,7 @@ def run_capture(cmd: list[str]) -> str:
     return subprocess.run(cmd, check=True, text=True, capture_output=True).stdout
 
 
-def validate_docx(path: Path, errors: list[str]) -> None:
+def validate_docx(path: Path, errors: list[str], report: list[str]) -> None:
     try:
         with zipfile.ZipFile(path) as zf:
             bad = zf.testzip()
@@ -42,6 +43,18 @@ def validate_docx(path: Path, errors: list[str]) -> None:
                 for t in p.findall(f".//{{{W_NS}}}t"):
                     text_parts.append(t.text or "")
             text = " ".join(text_parts)
+            image_parts = [n for n in names if n.startswith("word/media/")]
+            report.extend([
+                f"DOCX: {path.name}",
+                f"- size_bytes: {path.stat().st_size}",
+                f"- paragraphs: {len(paragraphs)}",
+                f"- bidi_paragraphs: {bidi_count}",
+                f"- rtl_run_paragraphs: {rtl_count}",
+                f"- text_chars: {len(text.strip())}",
+                f"- embedded_media: {len(image_parts)}",
+                f"- persian_chars: {len(re.findall(r'[\u0600-\u06FF]', text))}",
+                "",
+            ])
             if len(text.strip()) < 10000:
                 errors.append(f"DOCX text content is unexpectedly short: {path}")
             if bidi_count < max(5, len(paragraphs) // 10):
@@ -50,7 +63,6 @@ def validate_docx(path: Path, errors: list[str]) -> None:
                 errors.append(f"DOCX does not declare the required Persian font: {path}")
             if "filecite" in text or "sandbox:" in text or re.search(r"turn\d+(?:search|file|image)\d+", text):
                 errors.append(f"DOCX contains internal/tooling markers: {path}")
-            image_parts = [n for n in names if n.startswith("word/media/")]
             if len(image_parts) < 3:
                 errors.append(f"DOCX contains fewer than 3 embedded figure assets: {path} (found={len(image_parts)})")
     except zipfile.BadZipFile:
@@ -59,16 +71,25 @@ def validate_docx(path: Path, errors: list[str]) -> None:
         errors.append(f"DOCX XML is malformed: {path} ({exc})")
 
 
-def validate_pdf(path: Path, errors: list[str]) -> None:
+def validate_pdf(path: Path, errors: list[str], report: list[str]) -> None:
     try:
         info = run_capture(["pdfinfo", str(path)])
         m = re.search(r"^Pages:\s+(\d+)", info, flags=re.MULTILINE)
         pages = int(m.group(1)) if m else 0
-        if pages < 5:
-            errors.append(f"PDF has unexpectedly few pages: {path} (pages={pages})")
         text = run_capture(["pdftotext", "-enc", "UTF-8", str(path), "-"])
         persian = len(re.findall(r"[\u0600-\u06FF]", text))
         latin = len(re.findall(r"[A-Za-z]", text))
+        report.extend([
+            f"PDF: {path.name}",
+            f"- size_bytes: {path.stat().st_size}",
+            f"- pages: {pages}",
+            f"- text_chars: {len(text.strip())}",
+            f"- persian_chars: {persian}",
+            f"- latin_chars: {latin}",
+            "",
+        ])
+        if pages < 5:
+            errors.append(f"PDF has unexpectedly few pages: {path} (pages={pages})")
         if persian < 1000:
             errors.append(f"PDF contains too little Persian text: {path} (chars={persian})")
         if latin < 500:
@@ -93,6 +114,7 @@ def main() -> int:
         return 0
 
     errors: list[str] = []
+    report: list[str] = ["# Publication QA Report", "", f"Enabled chapters: {len(enabled)}", ""]
     for marker in enabled:
         chapter = marker.parent.name
         out_dir = OUTPUT / chapter
@@ -103,13 +125,21 @@ def main() -> int:
         elif docx.stat().st_size < 20_000:
             errors.append(f"DOCX is unexpectedly small: {docx}")
         else:
-            validate_docx(docx, errors)
+            validate_docx(docx, errors, report)
         if not pdf.exists():
             errors.append(f"Missing PDF: {pdf}")
         elif pdf.stat().st_size < 20_000:
             errors.append(f"PDF is unexpectedly small: {pdf}")
         else:
-            validate_pdf(pdf, errors)
+            validate_pdf(pdf, errors, report)
+
+    QA_DIR.mkdir(parents=True, exist_ok=True)
+    report.extend(["## Result", "", "PASS" if not errors else "FAIL", ""])
+    if errors:
+        report.extend(["## Errors", ""] + [f"- {error}" for error in errors])
+    else:
+        report.append("All structural, RTL, bilingual-text, figure and PDF-render checks passed.")
+    (QA_DIR / "01-foundations-qa.md").write_text("\n".join(report) + "\n", encoding="utf-8")
 
     if errors:
         print("Publication validation failed:")
