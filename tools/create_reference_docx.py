@@ -25,22 +25,6 @@ def set_rtl(paragraph) -> None:
     add_bool_property(p_pr, "w:bidi")
 
 
-def set_run_font(run, persian: bool = False, size: float = 12, bold: bool | None = None) -> None:
-    run.font.name = PERSIAN_FONT if persian else LATIN_FONT
-    run.font.size = Pt(size)
-    if bold is not None:
-        run.font.bold = bold
-    rpr = run._r.get_or_add_rPr()
-    rfonts = rpr.rFonts
-    if rfonts is None:
-        rfonts = OxmlElement("w:rFonts")
-        rpr.insert(0, rfonts)
-    rfonts.set(qn("w:ascii"), LATIN_FONT)
-    rfonts.set(qn("w:hAnsi"), LATIN_FONT)
-    rfonts.set(qn("w:cs"), PERSIAN_FONT)
-    rfonts.set(qn("w:eastAsia"), LATIN_FONT)
-
-
 def configure_style(style, size: float, bold: bool = False, color: RGBColor | None = None,
                     before: float = 0, after: float = 7, line: float = 1.28) -> None:
     style.font.name = PERSIAN_FONT
@@ -79,6 +63,19 @@ def add_widow_control(style) -> None:
     add_bool_property(ppr, "w:widowControl")
 
 
+def configure_cell_style(style) -> None:
+    style.font.name = PERSIAN_FONT
+    style.font.size = Pt(10.5)
+    rpr = style._element.get_or_add_rPr()
+    rfonts = rpr.rFonts
+    if rfonts is None:
+        rfonts = OxmlElement("w:rFonts")
+        rpr.insert(0, rfonts)
+    rfonts.set(qn("w:ascii"), LATIN_FONT)
+    rfonts.set(qn("w:hAnsi"), LATIN_FONT)
+    rfonts.set(qn("w:cs"), PERSIAN_FONT)
+
+
 def main() -> None:
     OUT.parent.mkdir(parents=True, exist_ok=True)
     doc = Document()
@@ -103,10 +100,11 @@ def main() -> None:
     styles["Title"].paragraph_format.first_line_indent = Cm(0)
     add_keep_with_next(styles["Title"])
 
-    configure_style(styles["Subtitle"], 14, False, ACCENT, 0, 16, 1.2)
-    styles["Subtitle"].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    styles["Subtitle"].paragraph_format.first_line_indent = Cm(0)
-    add_keep_with_next(styles["Subtitle"])
+    if "Subtitle" in styles:
+        configure_style(styles["Subtitle"], 14, False, ACCENT, 0, 16, 1.2)
+        styles["Subtitle"].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+        styles["Subtitle"].paragraph_format.first_line_indent = Cm(0)
+        add_keep_with_next(styles["Subtitle"])
 
     configure_style(styles["Heading 1"], 17, True, ACCENT, 16, 8, 1.15)
     configure_style(styles["Heading 2"], 14.5, True, ACCENT, 12, 6, 1.15)
@@ -123,35 +121,30 @@ def main() -> None:
         styles["Caption"].paragraph_format.first_line_indent = Cm(0)
         add_keep_with_next(styles["Caption"])
 
-    # Ensure all core styles carry an RTL paragraph property and clean paragraph metrics.
-    for style_name in ("Normal", "Title", "Subtitle", "Heading 1", "Heading 2", "Heading 3", "Heading 4", "Caption"):
-        if style_name not in styles:
-            continue
-        set_rtl_style = styles[style_name]._element.get_or_add_pPr()
-        add_bool_property(set_rtl_style, "w:bidi")
+    if "Table Contents" in styles:
+        configure_cell_style(styles["Table Contents"])
+    if "Table Heading" in styles:
+        configure_cell_style(styles["Table Heading"])
+        styles["Table Heading"].font.bold = True
 
     header = section.header.paragraphs[0]
     header.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     set_rtl(header)
-    run = header.add_run("تحول دیجیتال هوشمند | معماری، چارچوب‌ها و پیاده‌سازی")
-    set_run_font(run, persian=True, size=9)
+    r = header.add_run("تحول دیجیتال هوشمند | معماری، چارچوب‌ها و پیاده‌سازی")
+    r.font.name = PERSIAN_FONT
+    r.font.size = Pt(9)
 
     footer = section.footer.paragraphs[0]
     footer.alignment = WD_ALIGN_PARAGRAPH.CENTER
     set_rtl(footer)
-    run = footer.add_run("صفحه ")
-    set_run_font(run, persian=True, size=9)
+    r = footer.add_run("صفحه ")
+    r.font.name = PERSIAN_FONT
+    r.font.size = Pt(9)
     fld = OxmlElement("w:fldSimple")
     fld.set(qn("w:instr"), "PAGE")
     footer._p.append(fld)
 
-    # Seed paragraphs so Pandoc preserves the configured style definitions.
-    for style_name in ("Normal", "Title", "Subtitle", "Heading 1", "Heading 2", "Heading 3", "Heading 4", "Caption"):
-        p = doc.add_paragraph(style=styles[style_name])
-        set_rtl(p)
-        r = p.add_run("")
-        set_run_font(r, persian=True, size=float(styles[style_name].font.size.pt if styles[style_name].font.size else 12))
-
+    # Ensure template styles exist; content is supplied later by Pandoc.
     doc.save(OUT)
     print(OUT)
 
