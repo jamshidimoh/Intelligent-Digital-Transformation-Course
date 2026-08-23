@@ -15,6 +15,7 @@ MARKDOWN_DIR = ROOT / "PUBLISH" / "markdown"
 OUTPUT_DIR = ROOT / "PUBLISH" / "CHAPTERS"
 REFERENCE_DOCX = ROOT / "PUBLISH" / "reference-template.docx"
 POSTPROCESS = ROOT / "tools" / "postprocess_rtl_docx.py"
+FINALIZER = ROOT / "tools" / "finalize_docx_rtl.py"
 
 
 def run(cmd: list[str]) -> None:
@@ -82,6 +83,11 @@ def render_one(md: Path) -> None:
 
     run([sys.executable, str(POSTPROCESS), str(docx)])
     normalize_docx_image_layout(docx)
+    # Final XML-level pass removes any ambiguity between Word paragraph
+    # alignment/Bidi semantics and LibreOffice's DOCX renderer. It runs last,
+    # after image layout normalization, while preserving figure paragraphs as
+    # centered exceptions.
+    run([sys.executable, str(FINALIZER), str(docx)])
 
     lo_out = chapter_dir / "_lo"
     if lo_out.exists():
