@@ -20,6 +20,17 @@ def add_bool_property(parent, tag: str) -> None:
         parent.append(OxmlElement(tag))
 
 
+def set_fonts(rpr) -> None:
+    rfonts = rpr.rFonts
+    if rfonts is None:
+        rfonts = OxmlElement("w:rFonts")
+        rpr.insert(0, rfonts)
+    rfonts.set(qn("w:ascii"), LATIN_FONT)
+    rfonts.set(qn("w:hAnsi"), LATIN_FONT)
+    rfonts.set(qn("w:cs"), PERSIAN_FONT)
+    rfonts.set(qn("w:eastAsia"), LATIN_FONT)
+
+
 def configure_style(style, size: float, bold: bool = False, color: RGBColor | None = None,
                     before: float = 0, after: float = 7, line: float = 1.28,
                     page_break_before: bool = False) -> None:
@@ -29,14 +40,7 @@ def configure_style(style, size: float, bold: bool = False, color: RGBColor | No
     if color:
         style.font.color.rgb = color
     rpr = style._element.get_or_add_rPr()
-    rfonts = rpr.rFonts
-    if rfonts is None:
-        rfonts = OxmlElement("w:rFonts")
-        rpr.insert(0, rfonts)
-    rfonts.set(qn("w:ascii"), LATIN_FONT)
-    rfonts.set(qn("w:hAnsi"), LATIN_FONT)
-    rfonts.set(qn("w:cs"), PERSIAN_FONT)
-    rfonts.set(qn("w:eastAsia"), LATIN_FONT)
+    set_fonts(rpr)
     ppr = style._element.get_or_add_pPr()
     spacing = ppr.find(qn("w:spacing"))
     if spacing is None:
@@ -48,23 +52,18 @@ def configure_style(style, size: float, bold: bool = False, color: RGBColor | No
     spacing.set(qn("w:lineRule"), "auto")
     if page_break_before:
         add_bool_property(ppr, "w:pageBreakBefore")
-    add_bool_property(ppr, "w:bidi")
-    add_bool_property(ppr, "w:keepNext")
+    # Direction is intentionally NOT attached globally to styles.
+    # The postprocessor determines paragraph direction from actual content.
     add_bool_property(ppr, "w:widowControl")
+    if style.name.startswith("Heading"):
+        add_bool_property(ppr, "w:keepNext")
 
 
 def configure_cell_style(style) -> None:
     style.font.name = PERSIAN_FONT
     style.font.size = Pt(10.5)
     rpr = style._element.get_or_add_rPr()
-    rfonts = rpr.rFonts
-    if rfonts is None:
-        rfonts = OxmlElement("w:rFonts")
-        rpr.insert(0, rfonts)
-    rfonts.set(qn("w:ascii"), LATIN_FONT)
-    rfonts.set(qn("w:hAnsi"), LATIN_FONT)
-    rfonts.set(qn("w:cs"), PERSIAN_FONT)
-    rfonts.set(qn("w:eastAsia"), LATIN_FONT)
+    set_fonts(rpr)
 
 
 def main() -> None:
@@ -75,15 +74,15 @@ def main() -> None:
     section.page_height = Cm(29.7)
     section.top_margin = Cm(2.4)
     section.bottom_margin = Cm(2.3)
-    section.left_margin = Cm(2.8)
-    section.right_margin = Cm(2.1)
-    section.header_distance = Cm(1.0)
-    section.footer_distance = Cm(1.0)
+    section.left_margin = Cm(2.7)
+    section.right_margin = Cm(2.3)
+    section.header_distance = Cm(0.9)
+    section.footer_distance = Cm(0.9)
 
     styles = doc.styles
-    configure_style(styles["Normal"], 12.2, False, None, 0, 7, 1.28)
+    configure_style(styles["Normal"], 12.5, False, None, 0, 6, 1.34)
     styles["Normal"].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-    styles["Normal"].paragraph_format.first_line_indent = Cm(0.45)
+    styles["Normal"].paragraph_format.first_line_indent = Cm(0.42)
 
     configure_style(styles["Title"], 21, True, ACCENT, 0, 8, 1.1)
     styles["Title"].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.RIGHT
@@ -94,10 +93,10 @@ def main() -> None:
         styles["Subtitle"].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.RIGHT
         styles["Subtitle"].paragraph_format.first_line_indent = Cm(0)
 
-    configure_style(styles["Heading 1"], 17, True, ACCENT, 18, 9, 1.12, True)
-    configure_style(styles["Heading 2"], 14.5, True, ACCENT, 12, 6, 1.12)
-    configure_style(styles["Heading 3"], 13.2, True, ACCENT, 10, 5, 1.12)
-    configure_style(styles["Heading 4"], 12.3, True, ACCENT, 8, 4, 1.12)
+    configure_style(styles["Heading 1"], 17, True, ACCENT, 18, 9, 1.15, True)
+    configure_style(styles["Heading 2"], 14.5, True, ACCENT, 13, 7, 1.15)
+    configure_style(styles["Heading 3"], 13.3, True, ACCENT, 10, 5, 1.15)
+    configure_style(styles["Heading 4"], 12.5, True, ACCENT, 8, 4, 1.15)
     for name in ("Heading 1", "Heading 2", "Heading 3", "Heading 4"):
         styles[name].paragraph_format.alignment = WD_ALIGN_PARAGRAPH.RIGHT
         styles[name].paragraph_format.first_line_indent = Cm(0)
