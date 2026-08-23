@@ -42,4 +42,4 @@
 
 این استاندارد در `BOOK-SYSTEM/STYLE-SPEC.md` تعریف شده و باید برای همه فصل‌های بعدی نیز اعمال شود.
 
-<!-- CI publication build probe: 2026-08-23 -->
+<!-- CI publication build probe: 2026-08-23 / sync-2 -->
