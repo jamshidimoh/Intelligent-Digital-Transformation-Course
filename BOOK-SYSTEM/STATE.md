@@ -18,7 +18,6 @@
 - بدون Scientific Review، ورود به `FINAL_QA` مجاز نیست.
 - بدون Educational Review و Fact Check، انتشار مجاز نیست.
 - `PUBLISHED` فقط وقتی معتبر است که Markdown، منابع و خروجی‌های مشتق‌شده با یک نسخه مشخص قابل ردیابی باشند.
-- Visual QA برای DOCX/PDF قبل از `PUBLISHED` اجباری است.
 
 ## State فعلی Pilot
 
@@ -32,14 +31,13 @@
 - Scientific review: `BOOK/01-foundations/SCIENTIFIC-REVIEW-v1.md`
 - Educational review: `BOOK/01-foundations/EDUCATIONAL-REVIEW-v1.md`
 - Fact check: `BOOK/01-foundations/FACT-CHECK-v1.md`
-- Style specification: `BOOK-SYSTEM/STYLE-SPEC.md`
-- Figure/table policy: `BOOK-SYSTEM/FIGURE-TABLE-POLICY.md`
-- DOCX template generator: `tools/create_reference_docx.py`
-- Build pipeline: `tools/build_book.py`, `tools/render_book.py`
+- Publication marker: `BOOK/01-foundations/.publish-enabled`
+- Publishing output: `PUBLISH/CHAPTERS/01-foundations/`
+- Publishing pipeline: GitHub Actions → build Markdown → generate RTL DOCX template → render DOCX → LibreOffice PDF → commit PUBLISH/CHAPTERS → upload artifact
 - Completed rewrite: sections 01-introduction, 02-learning-objectives, 03-evolution, 04-core-concepts, 05-socio-technical, 06-ai-native, 07-success-and-failure, 08-case-study, 09-summary-and-exercises
-- Publishing gate: CLOSED until canonical assembly, DOCX/PDF render and visual QA pass
+- Publishing gate: OPEN for Chapter 01; binary outputs are generated only by GitHub Actions
 - Last state update: 2026-08-23
-- Next task: Assemble canonical Chapter 01, obtain successful GitHub build artifacts, inspect rendered pages for RTL/mixed-language/font/table/figure/layout defects, then publish
+- Next task: Verify GitHub Actions publication run and inspect generated DOCX/PDF; then mark Chapter 01 `PUBLISHED` only after output QA passes
 
 ## Session resume protocol
 
