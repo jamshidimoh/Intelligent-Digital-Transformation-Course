@@ -23,17 +23,17 @@
 
 - Project: Intelligent-Digital-Transformation-Course
 - Pilot: Chapter 01 — Foundations
-- Current status: `EDUCATIONAL_REVIEW`
+- Current status: `FACT_CHECK`
 - Baseline: محتوای موجود در main حفظ شده و فقط به‌عنوان baseline تاریخی استفاده می‌شود.
 - Evidence pack: `BOOK/01-foundations/EVIDENCE-PACK-v1.md`
 - Outline: `BOOK/01-foundations/OUTLINE-v2.md`
 - Core references: `BOOK-SYSTEM/CORE-REFERENCES.md`
 - Scientific review: `BOOK/01-foundations/SCIENTIFIC-REVIEW-v1.md`
-- Completed rewrite: sections 01-introduction, 03-evolution, 04-core-concepts, 05-socio-technical, 06-ai-native, 07-success-and-failure, 08-case-study, 09-summary-and-exercises
-- Learning objectives: baseline retained; final sync to be checked during Educational Review
+- Educational review: `BOOK/01-foundations/EDUCATIONAL-REVIEW-v1.md`
+- Completed rewrite: sections 01-introduction, 02-learning-objectives, 03-evolution, 04-core-concepts, 05-socio-technical, 06-ai-native, 07-success-and-failure, 08-case-study, 09-summary-and-exercises
 - Publishing gate: CLOSED
 - Last state update: 2026-08-23
-- Next task: Educational Review of chapter flow, learning outcomes, terminology, examples, exercises, and section-to-section progression
+- Next task: Fact-check all key claims, references, dates, terminology, and cross-chapter boundaries before final QA
 
 ## Session resume protocol
 
