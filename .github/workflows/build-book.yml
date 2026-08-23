@@ -58,13 +58,22 @@ jobs:
           fi
 
           echo "Merging origin/main into book-agent-foundation before generation."
-          if ! git merge --no-commit --no-ff origin/main; then
-            echo 'CONFLICT: main could not be integrated automatically into book-agent-foundation.'
-            git status --short
-            git merge --abort || true
-            exit 1
+          if git merge --no-commit --no-ff origin/main; then
+            echo 'main integrated cleanly.'
+          else
+            echo 'Automatic merge reported conflicts. Applying publication-branch ownership to generated/RTL infrastructure files.'
+            git checkout --ours -- .github/workflows/build-book.yml tools/create_reference_docx.py PUBLISH/CHAPTERS/01-foundations/01-foundations.docx PUBLISH/CHAPTERS/01-foundations/01-foundations.pdf
+            git add .github/workflows/build-book.yml tools/create_reference_docx.py PUBLISH/CHAPTERS/01-foundations/01-foundations.docx PUBLISH/CHAPTERS/01-foundations/01-foundations.pdf
+            if git diff --name-only --diff-filter=U | grep -q .; then
+              echo 'CONFLICT: unresolved files remain after deterministic resolution.'
+              git status --short
+              git merge --abort || true
+              exit 1
+            fi
+            echo 'Conflicts resolved deterministically; retaining main additions elsewhere.'
           fi
-          echo 'main integrated successfully; merge commit will be created together with publication outputs.'
+          git add -A
+          echo 'main integration prepared; merge commit will be created with publication outputs.'
 
       - name: Install rendering dependencies
         run: |
