@@ -33,6 +33,15 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.head_ref || github.ref_name }}
 
+      - name: Synchronize branch before generation
+        if: github.event_name != 'pull_request'
+        run: |
+          set -euo pipefail
+          branch="${{ github.ref_name }}"
+          git fetch origin "$branch"
+          git reset --hard "origin/$branch"
+          git clean -fdx
+
       - name: Install rendering dependencies
         run: |
           sudo apt-get update
@@ -49,25 +58,6 @@ jobs:
       - name: Generate publication QA report
         run: python tools/validate_publication.py
 
-      - name: Synchronize branch before generated-file commits
-        if: github.event_name != 'pull_request'
-        run: |
-          git fetch origin ${{ github.ref_name }}
-          git rebase origin/${{ github.ref_name }}
-
-      - name: Persist QA report for inspection
-        if: github.event_name != 'pull_request'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add PUBLISH/QA
-          if git diff --cached --quiet; then
-            echo "No QA report changes."
-          else
-            git commit -m "Record publication QA report"
-            git push origin HEAD:${{ github.ref_name }}
-          fi
-
       - name: Enforce publication QA gate
         run: |
           test -f PUBLISH/QA/01-foundations-qa.md
@@ -78,24 +68,19 @@ jobs:
           fi
           echo 'Publication QA gate passed.'
 
-      - name: Synchronize branch before publication commit
+      - name: Publish generated outputs atomically
         if: github.event_name != 'pull_request'
         run: |
-          git fetch origin ${{ github.ref_name }}
-          git rebase origin/${{ github.ref_name }}
-
-      - name: Publish generated chapter files to repository
-        if: github.event_name != 'pull_request'
-        run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add PUBLISH/CHAPTERS
+          git add PUBLISH/QA PUBLISH/CHAPTERS
           if git diff --cached --quiet; then
-            echo "No publication changes."
+            echo "No generated publication changes."
             exit 0
           fi
-          git commit -m "Publish generated chapter DOCX and PDF files"
-          git push origin HEAD:${{ github.ref_name }}
+          git commit -m "Publish generated chapter outputs and QA report"
+          git push origin "HEAD:${{ github.ref_name }}"
 
       - name: Upload publication and QA artifacts
         if: always()
