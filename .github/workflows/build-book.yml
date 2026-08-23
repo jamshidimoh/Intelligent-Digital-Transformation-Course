@@ -27,6 +27,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Install rendering dependencies
         run: |
@@ -41,7 +42,11 @@ jobs:
       - name: Render DOCX and PDF chapter files
         run: python tools/render_book.py
 
+      - name: Validate publication outputs
+        run: python tools/validate_publication.py
+
       - name: Publish generated chapter files to repository
+        if: github.event_name != 'pull_request'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -51,7 +56,7 @@ jobs:
             exit 0
           fi
           git commit -m "Publish generated chapter DOCX and PDF files"
-          git push origin HEAD:${{ github.head_ref || github.ref_name }}
+          git push origin HEAD:${{ github.ref_name }}
 
       - name: Upload publication artifacts
         uses: actions/upload-artifact@v4
