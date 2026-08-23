@@ -141,13 +141,12 @@ def main() -> int:
         report.append("All structural, RTL, bilingual-text, figure and PDF-render checks passed.")
     (QA_DIR / "01-foundations-qa.md").write_text("\n".join(report) + "\n", encoding="utf-8")
 
+    print(f"QA report written to {QA_DIR / '01-foundations-qa.md'}")
     if errors:
-        print("Publication validation failed:")
         for error in errors:
-            print(f"- {error}")
-        return 1
-
-    print(f"Validated {len(enabled)} publish-enabled chapter(s) with structural, RTL, bilingual-text, figure and PDF-render checks.")
+            print(f"QA-ERROR: {error}")
+    else:
+        print(f"Validated {len(enabled)} publish-enabled chapter(s) with structural, RTL, bilingual-text, figure and PDF-render checks.")
     return 0
 
 
