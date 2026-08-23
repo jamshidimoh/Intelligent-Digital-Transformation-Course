@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
+import tempfile
+
+from docx import Document
 
 ROOT = Path(__file__).resolve().parents[1]
 MARKDOWN_DIR = ROOT / "PUBLISH" / "markdown"
@@ -17,33 +21,74 @@ def run(cmd: list[str]) -> None:
     subprocess.run(cmd, check=True)
 
 
+def prepare_render_assets(chapter_md: Path, resource_path: Path, workdir: Path) -> tuple[Path, Path]:
+    """Create a deterministic render tree and convert SVG figures to PNG.
+
+    LibreOffice can render SVG differently across versions. Academic publication
+    output should not depend on that variability, so all chapter SVG figures are
+    rasterized once with librsvg before Pandoc creates the DOCX.
+    """
+    staging = workdir / resource_path.name
+    staging.mkdir(parents=True, exist_ok=True)
+    source_figures = resource_path / "figures"
+    target_figures = staging / "figures"
+    if source_figures.exists():
+        target_figures.mkdir(parents=True, exist_ok=True)
+        for asset in source_figures.iterdir():
+            if asset.is_file() and asset.suffix.lower() != ".svg":
+                shutil.copy2(asset, target_figures / asset.name)
+            elif asset.is_file() and asset.suffix.lower() == ".svg":
+                png = target_figures / f"{asset.stem}.png"
+                run(["rsvg-convert", "-f", "png", "-o", str(png), str(asset)])
+
+    text = chapter_md.read_text(encoding="utf-8")
+    text = re.sub(r"(?P<path>figures/[^)\"']+)\.svg", r"\g<path>.png", text, flags=re.IGNORECASE)
+    staged_md = workdir / chapter_md.name
+    staged_md.write_text(text, encoding="utf-8")
+    return staged_md, staging
+
+
+def normalize_docx_image_layout(docx: Path) -> None:
+    """Ensure figures and captions form clean centered academic blocks."""
+    doc = Document(docx)
+    for paragraph in doc.paragraphs:
+        has_drawing = bool(paragraph._p.xpath(".//w:drawing"))
+        if has_drawing:
+            from docx.enum.text import WD_ALIGN_PARAGRAPH
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            paragraph.paragraph_format.first_line_indent = 0
+    doc.save(docx)
+
+
 def render_one(md: Path) -> None:
     slug = md.stem
     chapter_dir = OUTPUT_DIR / slug
     chapter_dir.mkdir(parents=True, exist_ok=True)
-    for stale in chapter_dir.glob("_lo"):
-        if stale.is_dir():
-            shutil.rmtree(stale)
 
-    docx = chapter_dir / f"{slug}.docx"
-    pdf = chapter_dir / f"{slug}.pdf"
     resource_path = ROOT / "BOOK" / slug
+    with tempfile.TemporaryDirectory(prefix="book-render-") as td:
+        workdir = Path(td)
+        staged_md, staged_resource = prepare_render_assets(md, resource_path, workdir)
 
-    run([
-        "pandoc", str(md),
-        "--from", "markdown",
-        "--standalone",
-        "--resource-path", str(resource_path),
-        "--reference-doc", str(REFERENCE_DOCX),
-        "--metadata", "dir=rtl",
-        "--metadata", "lang=fa-IR",
-        "--metadata", f"title=تحول دیجیتال هوشمند - {slug}",
-        "-o", str(docx),
-    ])
+        docx = chapter_dir / f"{slug}.docx"
+        pdf = chapter_dir / f"{slug}.pdf"
+        run([
+            "pandoc", str(staged_md),
+            "--from", "markdown",
+            "--standalone",
+            "--resource-path", str(staged_resource),
+            "--reference-doc", str(REFERENCE_DOCX),
+            "--metadata", "dir=rtl",
+            "--metadata", "lang=fa-IR",
+            "--metadata", f"title=تحول دیجیتال هوشمند - {slug}",
+            "-o", str(docx),
+        ])
 
     run([sys.executable, str(POSTPROCESS), str(docx)])
 
     lo_out = chapter_dir / "_lo"
+    if lo_out.exists():
+        shutil.rmtree(lo_out)
     lo_out.mkdir(exist_ok=True)
     run([
         "libreoffice", "--headless", "--convert-to", "pdf",
@@ -54,6 +99,7 @@ def render_one(md: Path) -> None:
         raise RuntimeError(f"LibreOffice did not produce {produced}")
     shutil.move(str(produced), str(pdf))
     shutil.rmtree(lo_out, ignore_errors=True)
+    normalize_docx_image_layout(docx)
     print(f"Published: {docx}")
     print(f"Published: {pdf}")
 
@@ -69,7 +115,6 @@ def main() -> int:
     if not files:
         print("No built chapter Markdown files found.", file=sys.stderr)
         return 1
-    # Publication directory is derived output; stale chapter files must not survive.
     for child in OUTPUT_DIR.iterdir() if OUTPUT_DIR.exists() else []:
         if child.is_dir():
             shutil.rmtree(child)
