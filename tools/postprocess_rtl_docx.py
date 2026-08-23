@@ -73,11 +73,10 @@ def tokenize_mixed(text: str) -> list[tuple[str, str]]:
     chunks: list[tuple[str, str]] = []
     current: list[str] = []
     current_kind: str | None = None
+
     for ch in text:
         kind = classify_char(ch)
         if kind == "neutral":
-            if current_kind is None:
-                current_kind = "fa"
             current.append(ch)
             continue
         if current_kind is None:
@@ -87,9 +86,21 @@ def tokenize_mixed(text: str) -> list[tuple[str, str]]:
             current = []
             current_kind = kind
         current.append(ch)
+
     if current:
-        chunks.append((current_kind or "fa", "".join(current)))
-    return [(k, t) for k, t in chunks if t]
+        chunks.append((current_kind or "neutral", "".join(current)))
+
+    merged: list[tuple[str, str]] = []
+    for kind, piece in chunks:
+        if kind == "neutral":
+            if merged:
+                pk, pt = merged[-1]
+                merged[-1] = (pk, pt + piece)
+            else:
+                merged.append(("en", piece))
+        else:
+            merged.append((kind, piece))
+    return [(k, t) for k, t in merged if t]
 
 
 def make_run_clone(run_el, text: str, rtl: bool):
@@ -104,7 +115,7 @@ def make_run_clone(run_el, text: str, rtl: bool):
     return clone
 
 
-def replace_run_with_script_chunks(run) -> None:
+def replace_run_with_bidi_safe_chunks(run) -> None:
     run_el = run._r
     text = get_text(run_el)
     if not text:
@@ -112,29 +123,45 @@ def replace_run_with_script_chunks(run) -> None:
     parent = run_el.getparent()
     if parent is None:
         return
+
     chunks = tokenize_mixed(text)
     meaningful = [(k, t) for k, t in chunks if any(c.isalnum() for c in t)]
     if len(meaningful) <= 1:
-        set_run_direction(run_el, meaningful[0][0] == "fa" if meaningful else True)
+        kind = meaningful[0][0] if meaningful else "fa"
+        set_run_direction(run_el, kind != "en")
         return
+
     index = parent.index(run_el)
     for kind, piece in chunks:
-        parent.insert(index, make_run_clone(run_el, piece, kind == "fa"))
+        parent.insert(index, make_run_clone(run_el, piece, kind != "en"))
         index += 1
     parent.remove(run_el)
 
 
-def set_paragraph_rtl(paragraph) -> None:
+def set_paragraph_bidi(paragraph, enabled: bool) -> None:
     ppr = paragraph._p.get_or_add_pPr()
-    set_bool(ppr, "w:bidi", True)
-    set_bool(ppr, "w:widowControl", True)
-    paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    set_bool(ppr, "w:bidi", enabled)
 
 
 def paragraph_is_code_like(paragraph) -> bool:
     style_name = paragraph.style.name.lower() if paragraph.style else ""
     text = paragraph.text or ""
     return "code" in style_name or text.strip().startswith(("```", "$ ", ">> "))
+
+
+def tune_style(styles, name: str, size: float, before: float, after: float, line: float) -> None:
+    if name not in styles:
+        return
+    s = styles[name]
+    s.font.name = PERSIAN_FONT
+    s.font.size = Pt(size)
+    s.paragraph_format.space_before = Pt(before)
+    s.paragraph_format.space_after = Pt(after)
+    s.paragraph_format.line_spacing = line
+    s.paragraph_format.first_line_indent = Cm(0)
+    ppr = s._element.get_or_add_pPr()
+    set_bool(ppr, "w:bidi", False)
+    set_bool(ppr, "w:widowControl", True)
 
 
 def tune_styles(doc: Document) -> None:
@@ -147,7 +174,6 @@ def tune_styles(doc: Document) -> None:
         s.paragraph_format.space_after = Pt(6)
         s.paragraph_format.line_spacing = 1.34
         s.paragraph_format.first_line_indent = Cm(0.42)
-        set_bool(s._element.get_or_add_pPr(), "w:bidi", False)
 
     heading_specs = {
         "Heading 1": (17, 18, 10, 1.15),
@@ -171,13 +197,26 @@ def tune_styles(doc: Document) -> None:
             set_bool(ppr, "w:keepNext", True)
             set_bool(ppr, "w:widowControl", True)
 
-    for name in ("List Bullet", "List Number", "List Bullet 2", "List Number 2", "Quote", "Intense Quote", "Caption"):
+    tune_style(styles, "List Bullet", 12.2, 0, 3, 1.28)
+    tune_style(styles, "List Number", 12.2, 0, 3, 1.28)
+    tune_style(styles, "List Bullet 2", 11.8, 0, 2, 1.25)
+    tune_style(styles, "List Number 2", 11.8, 0, 2, 1.25)
+    tune_style(styles, "Quote", 12.2, 5, 7, 1.28)
+    tune_style(styles, "Intense Quote", 12.2, 5, 7, 1.28)
+
+    for name in ("List Bullet", "List Number", "List Bullet 2", "List Number 2"):
         if name in styles:
-            s = styles[name]
-            s.font.name = PERSIAN_FONT
-            s.paragraph_format.first_line_indent = Cm(0)
-            set_bool(s._element.get_or_add_pPr(), "w:bidi", False)
-            set_bool(s._element.get_or_add_pPr(), "w:widowControl", True)
+            styles[name].paragraph_format.left_indent = Cm(0.4)
+            styles[name].paragraph_format.right_indent = Cm(0.2)
+
+    if "Caption" in styles:
+        s = styles["Caption"]
+        s.font.name = PERSIAN_FONT
+        s.font.size = Pt(10.5)
+        s.paragraph_format.space_before = Pt(4)
+        s.paragraph_format.space_after = Pt(8)
+        s.paragraph_format.line_spacing = 1.12
+        s.paragraph_format.first_line_indent = Cm(0)
 
 
 def tune_sections(doc: Document) -> None:
@@ -192,55 +231,49 @@ def tune_sections(doc: Document) -> None:
         section.footer_distance = Cm(0.9)
 
 
-def paragraph_has_drawing(paragraph) -> bool:
-    return bool(paragraph._p.xpath(".//w:drawing"))
-
-
-def paragraph_is_caption(paragraph) -> bool:
-    return paragraph.style.name == "Caption" if paragraph.style else False
-
-
 def configure_paragraph(paragraph) -> None:
+    text = paragraph.text or ""
     if paragraph_is_code_like(paragraph):
-        ppr = paragraph._p.get_or_add_pPr()
-        set_bool(ppr, "w:bidi", False)
+        set_paragraph_bidi(paragraph, False)
         paragraph.alignment = WD_ALIGN_PARAGRAPH.LEFT
         paragraph.paragraph_format.first_line_indent = Cm(0)
         for run in list(paragraph.runs):
             set_run_direction(run._r, False)
         return
 
-    set_paragraph_rtl(paragraph)
+    # The book is a Persian/RTL publication. Paragraph direction is therefore
+    # ALWAYS RTL for prose, headings, lists, quotations and captions, regardless
+    # of the first token or the dominant script. Only individual Latin/technical
+    # runs are LTR inside the RTL paragraph.
+    set_paragraph_bidi(paragraph, True)
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     paragraph.paragraph_format.first_line_indent = Cm(0.42)
 
-    style_name = paragraph.style.name if paragraph.style else ""
-    if style_name.startswith("Heading"):
-        paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+    style_name = paragraph.style.name or ""
+    is_list = style_name.startswith("List ")
+    is_caption = style_name == "Caption"
+
+    if style_name.startswith("Heading") or is_list or is_caption or style_name in {"Quote", "Intense Quote"}:
         paragraph.paragraph_format.first_line_indent = Cm(0)
-        set_bool(paragraph._p.get_or_add_pPr(), "w:keepNext", True)
-    elif paragraph_has_drawing(paragraph):
-        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        paragraph.paragraph_format.first_line_indent = Cm(0)
-        paragraph.paragraph_format.space_before = Pt(8)
-        paragraph.paragraph_format.space_after = Pt(5)
-    elif paragraph_is_caption(paragraph):
-        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        paragraph.paragraph_format.first_line_indent = Cm(0)
-        paragraph.paragraph_format.space_before = Pt(4)
-        paragraph.paragraph_format.space_after = Pt(8)
-    elif style_name.startswith("List "):
-        paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-        paragraph.paragraph_format.first_line_indent = Cm(0)
+
+    if is_list:
         paragraph.paragraph_format.left_indent = Cm(0.4)
         paragraph.paragraph_format.right_indent = Cm(0.2)
-    else:
-        paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
 
     for run in list(paragraph.runs):
-        replace_run_with_script_chunks(run)
+        replace_run_with_bidi_safe_chunks(run)
 
     ppr = paragraph._p.get_or_add_pPr()
     set_bool(ppr, "w:widowControl", True)
+    if style_name.startswith("Heading"):
+        set_bool(ppr, "w:keepNext", True)
+
+
+def remove_cell_text_direction(cell) -> None:
+    tc_pr = cell._tc.get_or_add_tcPr()
+    node = tc_pr.find(qn("w:textDirection"))
+    if node is not None:
+        tc_pr.remove(node)
 
 
 def configure_table(table) -> None:
@@ -249,28 +282,27 @@ def configure_table(table) -> None:
     for row_index, row in enumerate(table.rows):
         for cell in row.cells:
             cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
-            tc_pr = cell._tc.get_or_add_tcPr()
-            rotated = tc_pr.find(qn("w:textDirection"))
-            if rotated is not None:
-                tc_pr.remove(rotated)
+            remove_cell_text_direction(cell)
             for paragraph in cell.paragraphs:
-                set_paragraph_rtl(paragraph)
+                set_paragraph_bidi(paragraph, True)
+                paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
                 paragraph.paragraph_format.first_line_indent = Cm(0)
                 paragraph.paragraph_format.space_before = Pt(0)
                 paragraph.paragraph_format.space_after = Pt(2)
                 paragraph.paragraph_format.line_spacing = 1.08
                 for run in list(paragraph.runs):
-                    replace_run_with_script_chunks(run)
+                    replace_run_with_bidi_safe_chunks(run)
                 if row_index == 0:
                     for run in paragraph.runs:
                         run.bold = True
 
 
 def configure_header_footer(paragraph) -> None:
-    set_paragraph_rtl(paragraph)
+    set_paragraph_bidi(paragraph, True)
+    paragraph.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     paragraph.paragraph_format.first_line_indent = Cm(0)
     for run in list(paragraph.runs):
-        replace_run_with_script_chunks(run)
+        replace_run_with_bidi_safe_chunks(run)
 
 
 def main() -> int:
@@ -285,6 +317,7 @@ def main() -> int:
     doc = Document(path)
     tune_sections(doc)
     tune_styles(doc)
+
     for paragraph in doc.paragraphs:
         configure_paragraph(paragraph)
     for table in doc.tables:
@@ -294,7 +327,7 @@ def main() -> int:
             configure_header_footer(paragraph)
 
     doc.save(path)
-    print(f"Post-processed whole-document RTL academic DOCX: {path}")
+    print(f"Post-processed Persian RTL document: {path}")
     return 0
 
 
