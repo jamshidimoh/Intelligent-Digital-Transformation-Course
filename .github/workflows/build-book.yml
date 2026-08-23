@@ -33,7 +33,7 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.head_ref || github.ref_name }}
 
-      - name: Synchronize branch before generation
+      - name: Synchronize branch with remote state
         if: github.event_name != 'pull_request'
         run: |
           set -euo pipefail
@@ -41,6 +41,24 @@ jobs:
           git fetch origin "$branch"
           git reset --hard "origin/$branch"
           git clean -fdx
+
+      - name: Integrate main into publication branch
+        if: github.event_name != 'pull_request' && github.ref_name == 'book-agent-foundation'
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          if git merge-base --is-ancestor origin/main HEAD; then
+            echo "Publication branch is already up to date with main."
+          else
+            echo "Merging origin/main into book-agent-foundation before generation."
+            git merge --no-commit --no-ff origin/main || {
+              echo 'CONFLICT: main could not be integrated automatically into book-agent-foundation.'
+              git status --short
+              git merge --abort || true
+              exit 1
+            }
+            echo 'main integrated successfully; merge commit will be created together with publication outputs.'
+          fi
 
       - name: Install rendering dependencies
         run: |
@@ -75,11 +93,15 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add PUBLISH/QA PUBLISH/CHAPTERS
-          if git diff --cached --quiet; then
-            echo "No generated publication changes."
+          if git diff --cached --quiet && ! git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1; then
+            echo "No generated publication changes and no pending merge commit."
             exit 0
           fi
-          git commit -m "Publish generated chapter outputs and QA report"
+          if git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1; then
+            git commit -m "Merge main into book-agent-foundation and publish generated outputs"
+          else
+            git commit -m "Publish generated chapter outputs and QA report"
+          fi
           git push origin "HEAD:${{ github.ref_name }}"
 
       - name: Upload publication and QA artifacts
