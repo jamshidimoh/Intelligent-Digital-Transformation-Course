@@ -8,7 +8,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 BOOK = ROOT / "BOOK"
 DIST = ROOT / "PUBLISH"
-REFERENCE_DOCX = DIST / "reference.docx"
+REFERENCE_DOCX = DIST / "reference-template.docx"
 
 
 def chapter_sections(chapter_dir: Path) -> list[Path]:
