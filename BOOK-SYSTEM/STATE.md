@@ -23,11 +23,13 @@
 
 - Project: Intelligent-Digital-Transformation-Course
 - Pilot: Chapter 01 — Foundations
-- Current status: `EVIDENCE_READY`
+- Current status: `DRAFTING`
 - Baseline: محتوای موجود در main حفظ شده و فقط به‌عنوان baseline تاریخی استفاده می‌شود.
 - Evidence pack: `BOOK/01-foundations/EVIDENCE-PACK-v1.md`
-- Research findings: ادعاهای کلیدی درباره چندبعدی‌بودن تحول دیجیتال، نقش عامل انسانی، Agentic AI، AI-Native و حکمرانی AI شناسایی و طبقه‌بندی شدند.
-- Next task: ساخت Outline نهایی بر اساس Evidence Pack و سپس نگارش مجدد بخش‌ها
+- Outline: `BOOK/01-foundations/OUTLINE-v2.md`
+- Core references: `BOOK-SYSTEM/CORE-REFERENCES.md`
+- Completed rewrite: sections 01-introduction, 03-evolution, 04-core-concepts
+- Pending rewrite: learning objectives sync, socio-technical section, AI-enabled/AI-native section, success/failure, framework, case study, critical perspectives, summary/exercises
 - Publishing gate: CLOSED
 - Last state update: 2026-08-23
 
