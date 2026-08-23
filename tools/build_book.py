@@ -25,8 +25,6 @@ def eligible_chapters() -> list[Path]:
 
 
 def normalize_assets(markdown: str) -> str:
-    # The merged Markdown lives in PUBLISH/markdown, so chapter-relative image
-    # paths such as ../figures/x.svg would point outside the chapter assets.
     markdown = re.sub(r"\]\(\.\./figures/", "](figures/", markdown)
     markdown = re.sub(r"src=[\"']\.\./figures/", "src=\"figures/", markdown)
     return markdown
@@ -41,7 +39,9 @@ def build_chapter(chapter_dir: Path) -> Path:
 
     output = DIST / "markdown" / f"{chapter_dir.name}.md"
     output.parent.mkdir(parents=True, exist_ok=True)
-    merged = "\n\n---\n\n".join(
+    # Sections already begin with Heading 1 and the reference template applies
+    # page-break-before there. Do not inject horizontal rules between sections.
+    merged = "\n\n".join(
         normalize_assets(p.read_text(encoding="utf-8")) for p in parts
     )
     output.write_text(merged, encoding="utf-8")
