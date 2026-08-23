@@ -3,10 +3,11 @@
 Enabled chapters: 1
 
 DOCX: 01-foundations.docx
-- size_bytes: 268475
+- size_bytes: 268483
 - paragraphs: 474
 - content_paragraphs: 471
 - bidi_content_paragraphs: 471
+- right_aligned_content_paragraphs: 471
 - rtl_runs: 883
 - ltr_runs: 397
 - mixed_script_paragraphs: 204
@@ -34,4 +35,4 @@ PDF: 01-foundations.pdf
 
 PASS
 
-Publication satisfies whole-document RTL, mixed-script, table-direction, font, deterministic-figure and full-page rendering checks.
+Publication satisfies whole-document RTL, whole-document right alignment, mixed-script run direction, table direction, font, deterministic figure and full-page rendering checks.
