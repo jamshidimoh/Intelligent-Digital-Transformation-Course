@@ -45,6 +45,18 @@ jobs:
       - name: Generate publication QA report
         run: python tools/validate_publication.py
 
+      - name: Persist QA report for inspection
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add PUBLISH/QA
+          if git diff --cached --quiet; then
+            echo "No QA report changes."
+          else
+            git commit -m "Record publication QA report"
+            git push origin HEAD:${{ github.ref_name }}
+          fi
+
       - name: Enforce publication QA gate
         run: |
           test -f PUBLISH/QA/01-foundations-qa.md
@@ -60,12 +72,12 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add PUBLISH/CHAPTERS PUBLISH/QA
+          git add PUBLISH/CHAPTERS
           if git diff --cached --quiet; then
             echo "No publication changes."
             exit 0
           fi
-          git commit -m "Publish generated chapter files and QA report"
+          git commit -m "Publish generated chapter DOCX and PDF files"
           git push origin HEAD:${{ github.ref_name }}
 
       - name: Upload publication and QA artifacts
