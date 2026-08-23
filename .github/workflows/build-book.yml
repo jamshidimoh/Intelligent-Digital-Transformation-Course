@@ -2,7 +2,7 @@ name: Build and Publish Book
 
 on:
   push:
-    branches: [main]
+    branches: [main, book-agent-foundation]
     paths:
       - 'BOOK/**'
       - 'tools/**'
@@ -19,6 +19,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: build-book-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -27,11 +31,54 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.head_ref || github.ref_name }}
+
+      - name: Configure Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Synchronize branch with remote state
+        if: github.event_name != 'pull_request'
+        run: |
+          set -euo pipefail
+          branch="${{ github.ref_name }}"
+          git fetch origin "$branch"
+          git reset --hard "origin/$branch"
+          git clean -fdx
+
+      - name: Integrate main into publication branch
+        if: github.event_name != 'pull_request' && github.ref_name == 'book-agent-foundation'
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          if git merge-base --is-ancestor origin/main HEAD; then
+            echo "Publication branch is already up to date with main."
+            exit 0
+          fi
+
+          echo "Merging origin/main into book-agent-foundation before generation."
+          if git merge --no-commit --no-ff origin/main; then
+            echo 'main integrated cleanly.'
+          else
+            echo 'Automatic merge reported conflicts. Applying publication-branch ownership to generated/RTL infrastructure files.'
+            git checkout --ours -- .github/workflows/build-book.yml tools/create_reference_docx.py tools/finalize_docx_rtl.py tools/render_book.py PUBLISH/CHAPTERS/01-foundations/01-foundations.docx PUBLISH/CHAPTERS/01-foundations/01-foundations.pdf
+            git add .github/workflows/build-book.yml tools/create_reference_docx.py tools/finalize_docx_rtl.py tools/render_book.py PUBLISH/CHAPTERS/01-foundations/01-foundations.docx PUBLISH/CHAPTERS/01-foundations/01-foundations.pdf
+            if git diff --name-only --diff-filter=U | grep -q .; then
+              echo 'CONFLICT: unresolved files remain after deterministic resolution.'
+              git status --short
+              git merge --abort || true
+              exit 1
+            fi
+            echo 'Conflicts resolved deterministically; retaining main additions elsewhere.'
+          fi
+          git add -A
+          echo 'main integration prepared; merge commit will be created with publication outputs.'
 
       - name: Install rendering dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y pandoc libreoffice fonts-noto-core fonts-noto-extra librsvg2-bin
+          sudo apt-get install -y pandoc libreoffice fonts-noto-core fonts-noto-extra librsvg2-bin poppler-utils
           python -m pip install --upgrade pip
           python -m pip install python-docx
 
@@ -41,32 +88,47 @@ jobs:
       - name: Render DOCX and PDF chapter files
         run: python tools/render_book.py
 
-      - name: Validate generated publication files
-        run: |
-          test -d PUBLISH/CHAPTERS
-          found=0
-          while IFS= read -r -d '' f; do
-            found=1
-            size=$(stat -c%s "$f")
-            test "$size" -gt 10000 || { echo "Generated file is unexpectedly small: $f ($size bytes)"; exit 1; }
-          done < <(find PUBLISH/CHAPTERS -type f \( -name '*.docx' -o -name '*.pdf' \) -print0)
-          test "$found" -eq 1 || { echo 'No DOCX/PDF publication files were generated.'; exit 1; }
+      - name: Generate final publication QA
+        run: python tools/validate_publication_final.py
 
-      - name: Publish generated chapter files to repository
+      - name: Generate visual PDF layout QA
+        run: python tools/validate_visual_layout.py
+
+      - name: Enforce publication QA gates
+        run: |
+          set -euo pipefail
+          for report in PUBLISH/QA/01-foundations-qa.md PUBLISH/QA/visual-layout-qa.md; do
+            test -f "$report"
+            if grep -q '^FAIL$' "$report"; then
+              echo "Publication QA gate failed: $report"
+              cat "$report"
+              exit 1
+            fi
+          done
+          echo 'Publication QA gates passed.'
+
+      - name: Publish generated outputs atomically
         if: github.event_name != 'pull_request'
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add PUBLISH/CHAPTERS
-          if git diff --cached --quiet; then
-            echo "No publication changes."
+          set -euo pipefail
+          git add PUBLISH/QA PUBLISH/CHAPTERS
+          if git diff --cached --quiet && ! git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1; then
+            echo "No generated publication changes and no pending merge commit."
             exit 0
           fi
-          git commit -m "Publish generated chapter DOCX and PDF files"
-          git push
+          if git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1; then
+            git commit -m "Merge main into book-agent-foundation and publish generated outputs"
+          else
+            git commit -m "Publish generated chapter outputs and QA report"
+          fi
+          git push origin "HEAD:${{ github.ref_name }}"
 
-      - name: Upload publication artifacts
+      - name: Upload publication and QA artifacts
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: book-publications
-          path: PUBLISH/CHAPTERS/
+          name: book-publications-and-qa
+          path: |
+            PUBLISH/CHAPTERS/
+            PUBLISH/QA/
+          if-no-files-found: warn
