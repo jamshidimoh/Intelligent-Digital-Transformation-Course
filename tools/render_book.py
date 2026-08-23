@@ -8,7 +8,8 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 MARKDOWN_DIR = ROOT / "PUBLISH" / "markdown"
 OUTPUT_DIR = ROOT / "PUBLISH" / "CHAPTERS"
-REFERENCE_DOCX = ROOT / "PUBLISH" / "reference.docx"
+REFERENCE_DOCX = ROOT / "PUBLISH" / "reference-template.docx"
+POSTPROCESS = ROOT / "tools" / "postprocess_rtl_docx.py"
 
 
 def run(cmd: list[str]) -> None:
@@ -20,21 +21,27 @@ def render_one(md: Path) -> None:
     slug = md.stem
     chapter_dir = OUTPUT_DIR / slug
     chapter_dir.mkdir(parents=True, exist_ok=True)
+    for stale in chapter_dir.glob("_lo"):
+        if stale.is_dir():
+            shutil.rmtree(stale)
 
     docx = chapter_dir / f"{slug}.docx"
     pdf = chapter_dir / f"{slug}.pdf"
-
     resource_path = ROOT / "BOOK" / slug
-    cmd = [
+
+    run([
         "pandoc", str(md),
         "--from", "markdown",
         "--standalone",
         "--resource-path", str(resource_path),
         "--reference-doc", str(REFERENCE_DOCX),
+        "--metadata", "dir=rtl",
+        "--metadata", "lang=fa-IR",
         "--metadata", f"title=تحول دیجیتال هوشمند - {slug}",
         "-o", str(docx),
-    ]
-    run(cmd)
+    ])
+
+    run([sys.executable, str(POSTPROCESS), str(docx)])
 
     lo_out = chapter_dir / "_lo"
     lo_out.mkdir(exist_ok=True)
@@ -62,6 +69,12 @@ def main() -> int:
     if not files:
         print("No built chapter Markdown files found.", file=sys.stderr)
         return 1
+    # Publication directory is derived output; stale chapter files must not survive.
+    for child in OUTPUT_DIR.iterdir() if OUTPUT_DIR.exists() else []:
+        if child.is_dir():
+            shutil.rmtree(child)
+        else:
+            child.unlink()
     for md in files:
         render_one(md)
     return 0
